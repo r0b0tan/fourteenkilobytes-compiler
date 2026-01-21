@@ -1,8 +1,6 @@
 # fourteenkilobytes-compiler
 
-A constraint-driven static page compiler that enforces a 14KB limit per page.
-
-This is not a CMS. This is not a static site generator. This is a compiler that makes structural and content costs explicit and enforces discipline through hard constraints.
+This is not a CMS. This is not a static site generator. This is a constraint-driven static page compiler that enforces a 14KB limit per page, making structural and content costs explicit at authoring time.
 
 ## Constraints
 
