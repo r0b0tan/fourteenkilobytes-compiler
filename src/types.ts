@@ -204,6 +204,7 @@ export type CompilerError =
   | { code: 'ICON_NOT_IN_WHITELIST'; iconId: string; available: string[]; path?: string }
   | { code: 'CSS_PARSE_ERROR'; offset: number; message: string }
   | { code: 'CONTENT_INVALID_ELEMENT'; element: string; allowed: string[]; path?: string }
+  | { code: 'CONTENT_EMPTY'; message: string }
   | { code: 'EMPTY_TITLE'; message: string }
   | { code: 'TITLE_TOO_LONG'; length: number; maxLength: number }
   // Size errors

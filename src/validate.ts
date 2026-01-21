@@ -124,6 +124,16 @@ export function validateTitle(title: string): ValidationResult {
  * Validate content blocks.
  */
 export function validateContent(blocks: ContentBlock[]): ValidationResult {
+  if (blocks.length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_EMPTY',
+        message: 'At least one content block is required',
+      },
+    };
+  }
+
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     const result = validateContentBlock(block, `content[${i}]`);
