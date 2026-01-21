@@ -1,5 +1,5 @@
 {
-  "name": "@fourteenkilobytes/compiler",
+  "name": "fourteenkilobytes-compiler",
   "version": "1.0.0",
   "description": "Constraint-driven static page compiler with 14KB limit",
   "type": "module",

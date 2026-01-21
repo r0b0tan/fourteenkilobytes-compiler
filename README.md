@@ -16,13 +16,13 @@ This is not a CMS. This is not a static site generator. This is a compiler that 
 ## Installation
 
 ```bash
-npm install @fourteenkilobytes/compiler
+npm install fourteenkilobytes-compiler
 ```
 
 ## Usage
 
 ```typescript
-import { compile, dryRun } from '@fourteenkilobytes/compiler';
+import { compile, dryRun } from 'fourteenkilobytes-compiler';
 
 const input = {
   slug: 'hello-world',
