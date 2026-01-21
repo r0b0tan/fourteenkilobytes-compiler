@@ -1,4 +1,4 @@
-# fourteenkilobytes
+# fourteenkilobytes-compiler
 
 A constraint-driven static page compiler that enforces a 14KB limit per page.
 
