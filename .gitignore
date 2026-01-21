@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Compiler output (generated static pages)
+/output/
+
+# Manifest (runtime state, not source)
+manifest.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / Tools
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local

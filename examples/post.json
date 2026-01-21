@@ -1,0 +1,77 @@
+{
+  "slug": "hello-world",
+  "title": "Hello World",
+  "content": [
+    {
+      "type": "heading",
+      "level": 1,
+      "children": [{ "type": "text", "text": "Hello World" }]
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "type": "text", "text": "This is a " },
+        { "type": "bold", "children": [{ "type": "text", "text": "minimal" }] },
+        { "type": "text", "text": " blog post compiled under the " },
+        { "type": "italic", "children": [{ "type": "text", "text": "14KB constraint" }] },
+        { "type": "text", "text": "." }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "type": "text", "text": "Every byte counts. Every abstraction must justify its cost." }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "children": [{ "type": "text", "text": "What This Means" }]
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "type": "text", "text": "The compiler enforces discipline through hard constraints:" }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "type": "text", "text": "No external resources. No JavaScript. No CDNs." }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "type": "text", "text": "Just HTML, delivered in a single HTTP request." }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "type": "text", "text": "Read more about this project " },
+        {
+          "type": "link",
+          "href": "/about.html",
+          "children": [{ "type": "text", "text": "here" }]
+        },
+        { "type": "text", "text": "." }
+      ]
+    }
+  ],
+  "navigation": {
+    "items": [
+      { "text": "Home", "href": "/index.html" },
+      { "text": "About", "href": "/about.html" }
+    ]
+  },
+  "footer": {
+    "content": "Published under the 14KB constraint"
+  },
+  "css": {
+    "rules": "body{max-width:40em;margin:2em auto;padding:0 1em;font:1em/1.5 sans-serif}nav a{margin-right:1em}footer{margin-top:2em;color:#666}"
+  },
+  "icons": [],
+  "allowPagination": false,
+  "buildId": "example-001"
+}

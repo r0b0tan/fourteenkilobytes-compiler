@@ -1,0 +1,338 @@
+/**
+ * Input Validation
+ *
+ * Validates compiler input before processing.
+ * All validation is strict - no coercion, no defaults.
+ * Returns explicit errors on failure.
+ */
+
+import type {
+  CompilerInput,
+  CompilerError,
+  ContentBlock,
+  InlineNode,
+  NavigationModule,
+  FooterModule,
+  CssModule,
+  IconReference,
+} from './types.js';
+import { isValidIconId, getAvailableIconIds } from './icons.js';
+
+/** Slug pattern: lowercase alphanumeric and hyphens */
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+/** Href pattern: relative paths, fragments, or simple absolute paths */
+const HREF_PATTERN = /^(\/[a-z0-9._/-]*|#[a-z0-9-]*|[a-z0-9-]+\.html)$/i;
+
+/** Maximum title length in characters */
+const MAX_TITLE_LENGTH = 200;
+
+/**
+ * Result of validation.
+ */
+export type ValidationResult =
+  | { valid: true }
+  | { valid: false; error: CompilerError };
+
+/**
+ * Validate complete compiler input.
+ */
+export function validateInput(input: CompilerInput): ValidationResult {
+  // Validate slug
+  const slugResult = validateSlug(input.slug);
+  if (!slugResult.valid) return slugResult;
+
+  // Validate title
+  const titleResult = validateTitle(input.title);
+  if (!titleResult.valid) return titleResult;
+
+  // Validate content
+  const contentResult = validateContent(input.content);
+  if (!contentResult.valid) return contentResult;
+
+  // Validate navigation if present
+  if (input.navigation !== null) {
+    const navResult = validateNavigation(input.navigation);
+    if (!navResult.valid) return navResult;
+  }
+
+  // Validate footer if present
+  if (input.footer !== null) {
+    const footerResult = validateFooter(input.footer);
+    if (!footerResult.valid) return footerResult;
+  }
+
+  // Validate CSS if present
+  if (input.css !== null) {
+    const cssResult = validateCss(input.css);
+    if (!cssResult.valid) return cssResult;
+  }
+
+  // Validate icons
+  const iconsResult = validateIcons(input.icons);
+  if (!iconsResult.valid) return iconsResult;
+
+  return { valid: true };
+}
+
+/**
+ * Validate slug format.
+ */
+export function validateSlug(slug: string): ValidationResult {
+  if (!SLUG_PATTERN.test(slug)) {
+    return {
+      valid: false,
+      error: {
+        code: 'INVALID_SLUG',
+        slug,
+        pattern: SLUG_PATTERN.source,
+      },
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate title.
+ */
+export function validateTitle(title: string): ValidationResult {
+  if (!title || title.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'EMPTY_TITLE',
+        message: 'Title cannot be empty',
+      },
+    };
+  }
+
+  if (title.length > MAX_TITLE_LENGTH) {
+    return {
+      valid: false,
+      error: {
+        code: 'TITLE_TOO_LONG',
+        length: title.length,
+        maxLength: MAX_TITLE_LENGTH,
+      },
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate content blocks.
+ */
+export function validateContent(blocks: ContentBlock[]): ValidationResult {
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const result = validateContentBlock(block, i);
+    if (!result.valid) return result;
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate a single content block.
+ */
+function validateContentBlock(
+  block: ContentBlock,
+  _index: number
+): ValidationResult {
+  if (block.type !== 'heading' && block.type !== 'paragraph') {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_INVALID_ELEMENT',
+        element: block.type,
+        allowed: ['heading', 'paragraph'],
+      },
+    };
+  }
+
+  if (block.type === 'heading') {
+    if (
+      block.level === undefined ||
+      block.level < 1 ||
+      block.level > 6
+    ) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `heading with level ${block.level}`,
+          allowed: ['heading with level 1-6'],
+        },
+      };
+    }
+  }
+
+  // Validate inline nodes
+  for (const node of block.children) {
+    const result = validateInlineNode(node);
+    if (!result.valid) return result;
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate an inline node recursively.
+ */
+function validateInlineNode(node: InlineNode): ValidationResult {
+  const allowedTypes = ['text', 'bold', 'italic', 'link'];
+
+  if (!allowedTypes.includes(node.type)) {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_INVALID_ELEMENT',
+        element: node.type,
+        allowed: allowedTypes,
+      },
+    };
+  }
+
+  if (node.type === 'text') {
+    // Text nodes are always valid if they have text property
+    return { valid: true };
+  }
+
+  if (node.type === 'link') {
+    // Validate href
+    const hrefResult = validateHref(node.href);
+    if (!hrefResult.valid) return hrefResult;
+  }
+
+  // Validate children for bold, italic, link
+  if ('children' in node && node.children) {
+    for (const child of node.children) {
+      const result = validateInlineNode(child);
+      if (!result.valid) return result;
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate href format.
+ */
+export function validateHref(href: string): ValidationResult {
+  if (!HREF_PATTERN.test(href)) {
+    return {
+      valid: false,
+      error: {
+        code: 'INVALID_HREF',
+        href,
+        reason: 'Must be relative path, fragment, or .html file',
+      },
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate navigation module.
+ */
+export function validateNavigation(nav: NavigationModule): ValidationResult {
+  for (const item of nav.items) {
+    if (!item.text || item.text.trim().length === 0) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'navigation item with empty text',
+          allowed: ['navigation item with non-empty text'],
+        },
+      };
+    }
+
+    const hrefResult = validateHref(item.href);
+    if (!hrefResult.valid) return hrefResult;
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate footer module.
+ */
+export function validateFooter(footer: FooterModule): ValidationResult {
+  // Footer content can be empty, but must be a string
+  if (typeof footer.content !== 'string') {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_INVALID_ELEMENT',
+        element: 'footer with non-string content',
+        allowed: ['footer with string content'],
+      },
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate CSS module.
+ *
+ * Performs basic syntax validation.
+ * Does not validate CSS semantics.
+ */
+export function validateCss(css: CssModule): ValidationResult {
+  const rules = css.rules;
+
+  // Check for balanced braces
+  let braceCount = 0;
+  for (let i = 0; i < rules.length; i++) {
+    const char = rules[i];
+    if (char === '{') braceCount++;
+    if (char === '}') braceCount--;
+
+    if (braceCount < 0) {
+      return {
+        valid: false,
+        error: {
+          code: 'CSS_PARSE_ERROR',
+          offset: i,
+          message: 'Unexpected closing brace',
+        },
+      };
+    }
+  }
+
+  if (braceCount !== 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'CSS_PARSE_ERROR',
+        offset: rules.length,
+        message: 'Unbalanced braces',
+      },
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate icon references.
+ */
+export function validateIcons(icons: IconReference[]): ValidationResult {
+  const available = getAvailableIconIds();
+
+  for (const icon of icons) {
+    if (!isValidIconId(icon.id)) {
+      return {
+        valid: false,
+        error: {
+          code: 'ICON_NOT_IN_WHITELIST',
+          iconId: icon.id,
+          available,
+        },
+      };
+    }
+  }
+
+  return { valid: true };
+}
