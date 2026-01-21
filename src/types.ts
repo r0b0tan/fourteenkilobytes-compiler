@@ -200,10 +200,10 @@ export type CompilerResult = CompilerSuccess | CompilerFailure;
 export type CompilerError =
   // Validation errors
   | { code: 'INVALID_SLUG'; slug: string; pattern: string }
-  | { code: 'INVALID_HREF'; href: string; reason: string }
-  | { code: 'ICON_NOT_IN_WHITELIST'; iconId: string; available: string[] }
+  | { code: 'INVALID_HREF'; href: string; reason: string; path?: string }
+  | { code: 'ICON_NOT_IN_WHITELIST'; iconId: string; available: string[]; path?: string }
   | { code: 'CSS_PARSE_ERROR'; offset: number; message: string }
-  | { code: 'CONTENT_INVALID_ELEMENT'; element: string; allowed: string[] }
+  | { code: 'CONTENT_INVALID_ELEMENT'; element: string; allowed: string[]; path?: string }
   | { code: 'EMPTY_TITLE'; message: string }
   | { code: 'TITLE_TOO_LONG'; length: number; maxLength: number }
   // Size errors

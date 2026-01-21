@@ -126,7 +126,7 @@ export function validateTitle(title: string): ValidationResult {
 export function validateContent(blocks: ContentBlock[]): ValidationResult {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
-    const result = validateContentBlock(block, i);
+    const result = validateContentBlock(block, `content[${i}]`);
     if (!result.valid) return result;
   }
   return { valid: true };
@@ -137,7 +137,7 @@ export function validateContent(blocks: ContentBlock[]): ValidationResult {
  */
 function validateContentBlock(
   block: ContentBlock,
-  _index: number
+  path: string
 ): ValidationResult {
   if (block.type !== 'heading' && block.type !== 'paragraph') {
     return {
@@ -146,6 +146,7 @@ function validateContentBlock(
         code: 'CONTENT_INVALID_ELEMENT',
         element: block.type,
         allowed: ['heading', 'paragraph'],
+        path,
       },
     };
   }
@@ -162,14 +163,16 @@ function validateContentBlock(
           code: 'CONTENT_INVALID_ELEMENT',
           element: `heading with level ${block.level}`,
           allowed: ['heading with level 1-6'],
+          path,
         },
       };
     }
   }
 
   // Validate inline nodes
-  for (const node of block.children) {
-    const result = validateInlineNode(node);
+  for (let i = 0; i < block.children.length; i++) {
+    const node = block.children[i];
+    const result = validateInlineNode(node, `${path}.children[${i}]`);
     if (!result.valid) return result;
   }
 
@@ -179,7 +182,7 @@ function validateContentBlock(
 /**
  * Validate an inline node recursively.
  */
-function validateInlineNode(node: InlineNode): ValidationResult {
+function validateInlineNode(node: InlineNode, path: string): ValidationResult {
   const allowedTypes = ['text', 'bold', 'italic', 'link'];
 
   if (!allowedTypes.includes(node.type)) {
@@ -189,6 +192,7 @@ function validateInlineNode(node: InlineNode): ValidationResult {
         code: 'CONTENT_INVALID_ELEMENT',
         element: node.type,
         allowed: allowedTypes,
+        path,
       },
     };
   }
@@ -200,14 +204,15 @@ function validateInlineNode(node: InlineNode): ValidationResult {
 
   if (node.type === 'link') {
     // Validate href
-    const hrefResult = validateHref(node.href);
+    const hrefResult = validateHref(node.href, path);
     if (!hrefResult.valid) return hrefResult;
   }
 
   // Validate children for bold, italic, link
   if ('children' in node && node.children) {
-    for (const child of node.children) {
-      const result = validateInlineNode(child);
+    for (let i = 0; i < node.children.length; i++) {
+      const child = node.children[i];
+      const result = validateInlineNode(child, `${path}.children[${i}]`);
       if (!result.valid) return result;
     }
   }
@@ -218,7 +223,7 @@ function validateInlineNode(node: InlineNode): ValidationResult {
 /**
  * Validate href format.
  */
-export function validateHref(href: string): ValidationResult {
+export function validateHref(href: string, path?: string): ValidationResult {
   if (!HREF_PATTERN.test(href)) {
     return {
       valid: false,
@@ -226,6 +231,7 @@ export function validateHref(href: string): ValidationResult {
         code: 'INVALID_HREF',
         href,
         reason: 'Must be relative path, fragment, or .html file',
+        path,
       },
     };
   }
@@ -236,7 +242,10 @@ export function validateHref(href: string): ValidationResult {
  * Validate navigation module.
  */
 export function validateNavigation(nav: NavigationModule): ValidationResult {
-  for (const item of nav.items) {
+  for (let i = 0; i < nav.items.length; i++) {
+    const item = nav.items[i];
+    const path = `navigation.items[${i}]`;
+
     if (!item.text || item.text.trim().length === 0) {
       return {
         valid: false,
@@ -244,11 +253,12 @@ export function validateNavigation(nav: NavigationModule): ValidationResult {
           code: 'CONTENT_INVALID_ELEMENT',
           element: 'navigation item with empty text',
           allowed: ['navigation item with non-empty text'],
+          path,
         },
       };
     }
 
-    const hrefResult = validateHref(item.href);
+    const hrefResult = validateHref(item.href, path);
     if (!hrefResult.valid) return hrefResult;
   }
 
@@ -321,7 +331,8 @@ export function validateCss(css: CssModule): ValidationResult {
 export function validateIcons(icons: IconReference[]): ValidationResult {
   const available = getAvailableIconIds();
 
-  for (const icon of icons) {
+  for (let i = 0; i < icons.length; i++) {
+    const icon = icons[i];
     if (!isValidIconId(icon.id)) {
       return {
         valid: false,
@@ -329,6 +340,7 @@ export function validateIcons(icons: IconReference[]): ValidationResult {
           code: 'ICON_NOT_IN_WHITELIST',
           iconId: icon.id,
           available,
+          path: `icons[${i}]`,
         },
       };
     }
