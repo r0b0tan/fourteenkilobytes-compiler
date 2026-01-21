@@ -136,23 +136,31 @@ export function addEntry(
 }
 
 /**
+ * Result of tombstone operation.
+ */
+export type TombstoneResult =
+  | { success: true; manifest: BuildManifest }
+  | { success: false; reason: 'NOT_FOUND' }
+  | { success: false; reason: 'ALREADY_TOMBSTONED'; tombstonedAt: string };
+
+/**
  * Mark an entry as tombstoned.
- * Returns null if entry doesn't exist or is already tombstoned.
+ * Returns discriminated result with reason on failure.
  */
 export function tombstoneEntry(
   manifest: BuildManifest,
   slug: string,
   tombstonedAt: string
-): BuildManifest | null {
+): TombstoneResult {
   const entryIndex = manifest.entries.findIndex((e) => e.slug === slug);
 
   if (entryIndex === -1) {
-    return null;
+    return { success: false, reason: 'NOT_FOUND' };
   }
 
   const entry = manifest.entries[entryIndex];
   if (entry.status === 'tombstone') {
-    return null;
+    return { success: false, reason: 'ALREADY_TOMBSTONED', tombstonedAt: entry.tombstonedAt! };
   }
 
   const updatedEntry: ManifestEntry = {
@@ -165,8 +173,11 @@ export function tombstoneEntry(
   entries[entryIndex] = updatedEntry;
 
   return {
-    ...manifest,
-    entries,
+    success: true,
+    manifest: {
+      ...manifest,
+      entries,
+    },
   };
 }
 

@@ -233,11 +233,15 @@ async function runTombstone(
 
   // Tombstone entry
   const timestamp = new Date().toISOString();
-  const updatedManifest = tombstoneEntry(manifest, slug, timestamp);
+  const result = tombstoneEntry(manifest, slug, timestamp);
 
-  if (!updatedManifest) {
+  if (!result.success) {
     console.error(`Cannot tombstone: ${slug}`);
-    console.error('Entry does not exist or is already tombstoned');
+    if (result.reason === 'NOT_FOUND') {
+      console.error(`Entry '${slug}' does not exist in manifest`);
+    } else {
+      console.error(`Entry '${slug}' was already tombstoned on ${result.tombstonedAt}`);
+    }
     return 1;
   }
 
@@ -249,7 +253,7 @@ async function runTombstone(
   console.log(`Wrote tombstone: ${outputPath}`);
 
   // Update manifest
-  await saveManifest(manifestPath, updatedManifest);
+  await saveManifest(manifestPath, result.manifest);
   console.log(`Updated manifest: ${manifestPath}`);
 
   return 0;
