@@ -61,4 +61,4 @@ export {
   buildIndexState,
   generateTombstoneHtml,
   validateManifest,
-} from './manifest.js';
+} from './manifest.core.js';
