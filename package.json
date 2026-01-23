@@ -13,11 +13,14 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:browser": "node build-browser.mjs",
+    "build:all": "tsc && node build-browser.mjs",
     "test": "node --test dist/compiler.test.js",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "esbuild": "^0.20.0",
     "typescript": "^5.3.0"
   },
   "files": [
