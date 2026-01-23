@@ -202,6 +202,9 @@ function flattenInlineNode(
     case 'text':
       return escapeHtml(node.text);
 
+    case 'linebreak':
+      return '<br>';
+
     case 'bold':
       return `<b>${flattenInlineNodes(node.children, icons, placement)}</b>`;
 

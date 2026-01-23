@@ -61,6 +61,30 @@ export function compile(input: CompilerInput): CompilerResult {
   // Stage 4: Paginate if needed
   if (totalBytes > SIZE_LIMIT) {
     if (!input.allowPagination) {
+      // Calculate available budget for content (SIZE_LIMIT minus fixed overhead)
+      const fixedOverhead =
+        breakdown.base +
+        breakdown.title +
+        breakdown.css +
+        breakdown.navigation +
+        breakdown.footer +
+        breakdown.icons +
+        breakdown.pagination;
+      const availableBudget = SIZE_LIMIT - fixedOverhead;
+
+      // Check if any single block exceeds the available budget
+      let oversizedBlock: { index: number; size: number; availableBudget: number } | undefined;
+      for (const block of contentBlocks) {
+        if (block.bytes > availableBudget) {
+          oversizedBlock = {
+            index: block.sourceIndex,
+            size: block.bytes,
+            availableBudget,
+          };
+          break;
+        }
+      }
+
       return {
         success: false,
         buildId: input.buildId,
@@ -70,6 +94,7 @@ export function compile(input: CompilerInput): CompilerResult {
           measured: totalBytes,
           limit: SIZE_LIMIT,
           breakdown,
+          oversizedBlock,
         },
         partialMeasurements: createPageMeasurement(input.slug, breakdown),
       };
@@ -114,6 +139,31 @@ export function compile(input: CompilerInput): CompilerResult {
 
     // Final verification
     if (bytes > SIZE_LIMIT) {
+      // Calculate available budget for content on this page
+      const pageBreakdown = paginatedPage.breakdown;
+      const pageFixedOverhead =
+        pageBreakdown.base +
+        pageBreakdown.title +
+        pageBreakdown.css +
+        pageBreakdown.navigation +
+        pageBreakdown.footer +
+        pageBreakdown.icons +
+        pageBreakdown.pagination;
+      const pageAvailableBudget = SIZE_LIMIT - pageFixedOverhead;
+
+      // Check if any single block on this page exceeds the budget
+      let oversizedBlock: { index: number; size: number; availableBudget: number } | undefined;
+      for (const block of paginatedPage.contentBlocks) {
+        if (block.bytes > pageAvailableBudget) {
+          oversizedBlock = {
+            index: block.sourceIndex,
+            size: block.bytes,
+            availableBudget: pageAvailableBudget,
+          };
+          break;
+        }
+      }
+
       return {
         success: false,
         buildId: input.buildId,
@@ -123,6 +173,7 @@ export function compile(input: CompilerInput): CompilerResult {
           measured: bytes,
           limit: SIZE_LIMIT,
           breakdown: paginatedPage.breakdown,
+          oversizedBlock,
         },
       };
     }

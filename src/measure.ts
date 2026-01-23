@@ -45,19 +45,26 @@ export function createPageMeasurement(
   slug: string,
   breakdown: ModuleBreakdown
 ): PageMeasurement {
-  const total =
+  const overhead =
     breakdown.base +
     breakdown.title +
     breakdown.css +
     breakdown.navigation +
     breakdown.footer +
     breakdown.pagination +
-    breakdown.icons +
-    breakdown.content;
+    breakdown.icons;
+
+  const content = breakdown.content;
+  const total = overhead + content;
 
   return {
     slug,
     breakdown,
+    measurements: {
+      total,
+      overhead,
+      content,
+    },
     total,
     remaining: SIZE_LIMIT - total,
     utilizationRatio: total / SIZE_LIMIT,

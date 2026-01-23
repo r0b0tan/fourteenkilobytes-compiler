@@ -45,11 +45,15 @@ export interface ContentBlock {
   children: InlineNode[];
 }
 
-export type InlineNode = TextNode | BoldNode | ItalicNode | LinkNode;
+export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | LinkNode;
 
 export interface TextNode {
   type: 'text';
   text: string;
+}
+
+export interface LinebreakNode {
+  type: 'linebreak';
 }
 
 export interface BoldNode {
@@ -141,9 +145,18 @@ export interface ModuleBreakdown {
   content: number;
 }
 
+export interface SimpleMeasurements {
+  total: number;
+  /** HTML-Boilerplate + Navigation + Footer + CSS + Title + Icons + Pagination */
+  overhead: number;
+  /** Nur die Content-Blöcke */
+  content: number;
+}
+
 export interface PageMeasurement {
   slug: string;
   breakdown: ModuleBreakdown;
+  measurements: SimpleMeasurements;
   total: number;
   /** 14336 - total */
   remaining: number;
@@ -208,7 +221,7 @@ export type CompilerError =
   | { code: 'EMPTY_TITLE'; message: string }
   | { code: 'TITLE_TOO_LONG'; length: number; maxLength: number }
   // Size errors
-  | { code: 'SIZE_LIMIT_EXCEEDED'; measured: number; limit: number; breakdown: ModuleBreakdown }
+  | { code: 'SIZE_LIMIT_EXCEEDED'; measured: number; limit: number; breakdown: ModuleBreakdown; oversizedBlock?: { index: number; size: number; availableBudget: number } }
   // Pagination errors
   | { code: 'PAGINATION_DISABLED'; measured: number; limit: number }
   | { code: 'PAGINATION_BLOCK_TOO_LARGE'; blockIndex: number; blockSize: number; availableBudget: number }

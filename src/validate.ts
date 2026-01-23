@@ -193,7 +193,7 @@ function validateContentBlock(
  * Validate an inline node recursively.
  */
 function validateInlineNode(node: InlineNode, path: string): ValidationResult {
-  const allowedTypes = ['text', 'bold', 'italic', 'link'];
+  const allowedTypes = ['text', 'linebreak', 'bold', 'italic', 'link'];
 
   if (!allowedTypes.includes(node.type)) {
     return {
@@ -207,8 +207,8 @@ function validateInlineNode(node: InlineNode, path: string): ValidationResult {
     };
   }
 
-  if (node.type === 'text') {
-    // Text nodes are always valid if they have text property
+  if (node.type === 'text' || node.type === 'linebreak') {
+    // Text and linebreak nodes are always valid
     return { valid: true };
   }
 
