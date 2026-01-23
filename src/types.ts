@@ -35,15 +35,26 @@ export interface CompilerInput {
   allowPagination: boolean;
   /** Build identifier for determinism verification */
   buildId: string;
+  /** Posts for bloglist rendering */
+  posts?: Post[];
 }
 
-export interface ContentBlock {
-  type: 'heading' | 'paragraph';
-  /** For headings: level 1-6 */
-  level?: 1 | 2 | 3 | 4 | 5 | 6;
-  /** Inline content */
+export interface ParagraphBlock {
+  type: 'paragraph';
   children: InlineNode[];
 }
+
+export interface HeadingBlock {
+  type: 'heading';
+  level?: 1 | 2 | 3 | 4 | 5 | 6;
+  children: InlineNode[];
+}
+
+export interface BloglistBlock {
+  type: 'bloglist';
+}
+
+export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock;
 
 export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | LinkNode;
 
@@ -98,6 +109,14 @@ export interface IconReference {
   placement: 'navigation' | 'content' | 'footer';
   /** Index within placement context */
   index: number;
+}
+
+export interface Post {
+  slug: string;
+  title: string;
+  publishedAt: string;
+  status: string;
+  pageType: string;
 }
 
 // =============================================================================

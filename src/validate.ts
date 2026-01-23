@@ -149,19 +149,21 @@ function validateContentBlock(
   block: ContentBlock,
   path: string
 ): ValidationResult {
-  if (block.type !== 'heading' && block.type !== 'paragraph') {
+  const blockType = block.type;
+  
+  if (blockType !== 'heading' && blockType !== 'paragraph' && blockType !== 'bloglist') {
     return {
       valid: false,
       error: {
         code: 'CONTENT_INVALID_ELEMENT',
-        element: block.type,
-        allowed: ['heading', 'paragraph'],
+        element: blockType,
+        allowed: ['heading', 'paragraph', 'bloglist'],
         path,
       },
     };
   }
 
-  if (block.type === 'heading') {
+  if (blockType === 'heading') {
     if (
       block.level === undefined ||
       block.level < 1 ||
@@ -179,11 +181,14 @@ function validateContentBlock(
     }
   }
 
-  // Validate inline nodes
-  for (let i = 0; i < block.children.length; i++) {
-    const node = block.children[i];
-    const result = validateInlineNode(node, `${path}.children[${i}]`);
-    if (!result.valid) return result;
+  // Bloglist blocks have no children to validate
+  if (blockType !== 'bloglist') {
+    // Validate inline nodes
+    for (let i = 0; i < block.children.length; i++) {
+      const node = block.children[i];
+      const result = validateInlineNode(node, `${path}.children[${i}]`);
+      if (!result.valid) return result;
+    }
   }
 
   return { valid: true };

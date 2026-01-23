@@ -13,6 +13,7 @@ import type {
   FlattenedPage,
   FlattenedContentBlock,
   ModuleBreakdown,
+  Post,
 } from './types.js';
 import { measureBytes, normalizeLineEndings } from './measure.js';
 import { getIconSvg, getIconBytes } from './icons.js';
@@ -100,7 +101,7 @@ export function flatten(input: CompilerInput): FlattenResult {
   // Build content blocks individually for pagination support
   const contentBlocks: FlattenedContentBlock[] = input.content.map(
     (block, index) => {
-      const html = flattenContentBlock(block, input.icons);
+      const html = flattenContentBlock(block, input.icons, input.posts);
       return {
         html,
         bytes: measureBytes(html),
@@ -164,8 +165,13 @@ export function flatten(input: CompilerInput): FlattenResult {
  */
 function flattenContentBlock(
   block: ContentBlock,
-  icons: { id: string; placement: string; index: number }[]
+  icons: { id: string; placement: string; index: number }[],
+  posts?: Post[]
 ): string {
+  if (block.type === 'bloglist') {
+    return renderBloglist(posts || []);
+  }
+
   const inlineHtml = flattenInlineNodes(block.children, icons, 'content');
 
   if (block.type === 'heading') {
@@ -174,6 +180,30 @@ function flattenContentBlock(
   }
 
   return `<p>${inlineHtml}</p>`;
+}
+
+/**
+ * Render a bloglist from post metadata.
+ */
+function renderBloglist(posts: Post[]): string {
+  const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
+  
+  if (published.length === 0) {
+    return '<p class="empty">Noch keine Posts.</p>';
+  }
+  
+  published.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  
+  const items = published.map(post => {
+    const date = new Date(post.publishedAt).toLocaleDateString('de-DE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    return `<li class="post"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a><time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
+  }).join('\n');
+  
+  return `<ul class="posts">\n${items}\n</ul>`;
 }
 
 /**
