@@ -13,8 +13,9 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:node": "node build-node.mjs",
     "build:browser": "node build-browser.mjs",
-    "build:all": "tsc && node build-browser.mjs",
+    "build:all": "tsc && node build-node.mjs && node build-browser.mjs",
     "test": "node --test dist/compiler.test.js",
     "typecheck": "tsc --noEmit"
   },
