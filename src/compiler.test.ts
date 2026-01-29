@@ -29,6 +29,8 @@ function createMinimalInput(overrides: Partial<CompilerInput> = {}): CompilerInp
     navigation: null,
     footer: null,
     css: null,
+    meta: null,
+    favicon: null,
     icons: [],
     allowPagination: false,
     buildId: 'test-build-001',

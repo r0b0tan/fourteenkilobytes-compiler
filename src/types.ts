@@ -29,6 +29,10 @@ export interface CompilerInput {
   footer: FooterModule | null;
   /** CSS module, null if disabled */
   css: CssModule | null;
+  /** Meta module for SEO tags, null if disabled */
+  meta: MetaModule | null;
+  /** Favicon as data URL (base64), null if disabled */
+  favicon?: string | null;
   /** Icon references from whitelist */
   icons: IconReference[];
   /** Allow compiler to split content across pages */
@@ -102,6 +106,13 @@ export interface CssModule {
   rules: string;
 }
 
+export interface MetaModule {
+  /** Meta description for SEO (max 160 chars) */
+  description?: string;
+  /** Author name (max 100 chars) */
+  author?: string;
+}
+
 export interface IconReference {
   /** Must exist in compiler's icon whitelist */
   id: string;
@@ -150,6 +161,10 @@ export interface ModuleBreakdown {
   base: number;
   /** <title>...</title> */
   title: number;
+  /** <link rel="icon"> favicon */
+  favicon: number;
+  /** <meta> tags for description and author */
+  meta: number;
   /** <style>...</style> including tags */
   css: number;
   /** <nav>...</nav> including tags */

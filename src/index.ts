@@ -27,6 +27,7 @@ export type {
   NavigationItem,
   FooterModule,
   CssModule,
+  MetaModule,
   IconReference,
   DryRunResult,
   BuildManifest,

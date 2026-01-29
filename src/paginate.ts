@@ -79,6 +79,8 @@ function calculateFixedOverhead(breakdown: ModuleBreakdown): number {
   return (
     breakdown.base +
     breakdown.title +
+    breakdown.favicon +
+    breakdown.meta +
     breakdown.css +
     breakdown.navigation +
     breakdown.footer +

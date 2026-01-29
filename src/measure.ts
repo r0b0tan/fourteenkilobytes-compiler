@@ -48,6 +48,8 @@ export function createPageMeasurement(
   const overhead =
     breakdown.base +
     breakdown.title +
+    breakdown.favicon +
+    breakdown.meta +
     breakdown.css +
     breakdown.navigation +
     breakdown.footer +
@@ -78,6 +80,8 @@ export function emptyBreakdown(): ModuleBreakdown {
   return {
     base: 0,
     title: 0,
+    favicon: 0,
+    meta: 0,
     css: 0,
     navigation: 0,
     footer: 0,
@@ -95,6 +99,7 @@ export function sumBreakdowns(breakdowns: ModuleBreakdown[]): ModuleBreakdown {
   for (const b of breakdowns) {
     result.base += b.base;
     result.title += b.title;
+    result.meta += b.meta;
     result.css += b.css;
     result.navigation += b.navigation;
     result.footer += b.footer;
@@ -112,6 +117,8 @@ export function totalFromBreakdown(breakdown: ModuleBreakdown): number {
   return (
     breakdown.base +
     breakdown.title +
+    breakdown.favicon +
+    breakdown.meta +
     breakdown.css +
     breakdown.navigation +
     breakdown.footer +

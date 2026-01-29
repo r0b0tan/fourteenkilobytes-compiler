@@ -53,6 +53,8 @@ export function flatten(input: CompilerInput): FlattenResult {
   const breakdown: ModuleBreakdown = {
     base: 0,
     title: 0,
+    favicon: 0,
+    meta: 0,
     css: 0,
     navigation: 0,
     footer: 0,
@@ -78,7 +80,30 @@ export function flatten(input: CompilerInput): FlattenResult {
     breakdown.css = measureBytes(cssHtml);
   }
 
-  const headContent = `<meta charset="utf-8">\n${titleHtml}${cssHtml ? '\n' + cssHtml : ''}`;
+  // Build favicon link
+  let faviconHtml = '';
+  if (input.favicon) {
+    faviconHtml = `<link rel="icon" href="${input.favicon}">`;
+    breakdown.favicon = measureBytes(faviconHtml);
+  }
+
+  // Build meta tags
+  let metaHtml = '';
+  if (input.meta !== null) {
+    const metaParts: string[] = [];
+    if (input.meta.description) {
+      metaParts.push(`<meta name="description" content="${escapeHtml(input.meta.description)}">`);
+    }
+    if (input.meta.author) {
+      metaParts.push(`<meta name="author" content="${escapeHtml(input.meta.author)}">`);
+    }
+    if (metaParts.length > 0) {
+      metaHtml = metaParts.join('\n');
+      breakdown.meta = measureBytes(metaHtml);
+    }
+  }
+
+  const headContent = `<meta charset="utf-8">\n${titleHtml}${faviconHtml ? '\n' + faviconHtml : ''}${metaHtml ? '\n' + metaHtml : ''}${cssHtml ? '\n' + cssHtml : ''}`;
   const head = `<head>\n${headContent}\n</head>`;
 
   // Build navigation
@@ -121,13 +146,23 @@ export function flatten(input: CompilerInput): FlattenResult {
   const bodyClose = '</body>';
   const htmlClose = '</html>';
 
+  // Calculate head structure bytes WITHOUT title, favicon, meta, and css content
+  // (title, favicon, meta, and css are tracked separately in breakdown)
+  // Head structure: <head>\n<meta charset="utf-8">\n[title][optional \n favicon][optional \n meta][optional \n css]\n</head>
+  const headStructureBytes =
+    measureBytes('<head>\n<meta charset="utf-8">\n') +
+    (faviconHtml ? measureBytes('\n') : 0) + // newline between title and favicon
+    (metaHtml ? measureBytes('\n') : 0) + // newline between favicon/title and meta
+    (cssHtml ? measureBytes('\n') : 0) + // newline between meta/title and css
+    measureBytes('\n</head>');
+
   // Base bytes: structure without modules
   breakdown.base =
     measureBytes(doctype) +
     measureBytes('\n') +
     measureBytes(htmlOpen) +
     measureBytes('\n') +
-    measureBytes(head) +
+    headStructureBytes +
     measureBytes('\n') +
     measureBytes(bodyOpen) +
     measureBytes('\n') +
@@ -307,40 +342,3 @@ export function assemblePageWithContent(
   return normalizeLineEndings(parts.join('\n'));
 }
 
-/**
- * Calculate fixed overhead (everything except content and pagination).
- */
-export function calculateFixedOverhead(
-  page: FlattenedPage,
-  breakdown: ModuleBreakdown
-): number {
-  // Base structure + navigation + footer + css + title + icons
-  // Content and pagination are variable
-  return (
-    breakdown.base +
-    breakdown.title +
-    breakdown.css +
-    breakdown.navigation +
-    breakdown.footer +
-    breakdown.icons -
-    breakdown.title // title is already in base via head
-  );
-}
-
-/**
- * Recalculate breakdown for a subset of content blocks.
- */
-export function recalculateBreakdown(
-  baseBreakdown: ModuleBreakdown,
-  contentBlocks: FlattenedContentBlock[],
-  paginationBytes: number
-): ModuleBreakdown {
-  const contentHtml = contentBlocks.map((b) => b.html).join('\n');
-  const contentBytes = measureBytes(contentHtml);
-
-  return {
-    ...baseBreakdown,
-    content: contentBytes,
-    pagination: paginationBytes,
-  };
-}

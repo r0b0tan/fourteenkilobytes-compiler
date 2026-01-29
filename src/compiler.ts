@@ -65,6 +65,8 @@ export function compile(input: CompilerInput): CompilerResult {
       const fixedOverhead =
         breakdown.base +
         breakdown.title +
+        breakdown.favicon +
+        breakdown.meta +
         breakdown.css +
         breakdown.navigation +
         breakdown.footer +
@@ -144,6 +146,8 @@ export function compile(input: CompilerInput): CompilerResult {
       const pageFixedOverhead =
         pageBreakdown.base +
         pageBreakdown.title +
+        pageBreakdown.favicon +
+        pageBreakdown.meta +
         pageBreakdown.css +
         pageBreakdown.navigation +
         pageBreakdown.footer +
@@ -262,6 +266,7 @@ export function formatBreakdown(breakdown: ModuleBreakdown): string {
   const items: [string, number][] = [
     ['Base', breakdown.base],
     ['Title', breakdown.title],
+    ['Meta', breakdown.meta],
     ['CSS', breakdown.css],
     ['Navigation', breakdown.navigation],
     ['Footer', breakdown.footer],

@@ -14,6 +14,7 @@ import type {
   NavigationModule,
   FooterModule,
   CssModule,
+  MetaModule,
   IconReference,
 } from './types.js';
 import { isValidIconId, getAvailableIconIds } from './icons.js';
@@ -26,6 +27,12 @@ const HREF_PATTERN = /^(\/[a-z0-9._/-]*|#[a-z0-9-]*|[a-z0-9-]+\.html)$/i;
 
 /** Maximum title length in characters */
 const MAX_TITLE_LENGTH = 200;
+
+/** Maximum meta description length in characters */
+const MAX_META_DESCRIPTION_LENGTH = 160;
+
+/** Maximum meta author length in characters */
+const MAX_META_AUTHOR_LENGTH = 100;
 
 /**
  * Result of validation.
@@ -66,6 +73,12 @@ export function validateInput(input: CompilerInput): ValidationResult {
   if (input.css !== null) {
     const cssResult = validateCss(input.css);
     if (!cssResult.valid) return cssResult;
+  }
+
+  // Validate meta if present
+  if (input.meta !== null) {
+    const metaResult = validateMeta(input.meta);
+    if (!metaResult.valid) return metaResult;
   }
 
   // Validate icons
@@ -335,6 +348,59 @@ export function validateCss(css: CssModule): ValidationResult {
         message: 'Unbalanced braces',
       },
     };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate meta module.
+ */
+export function validateMeta(meta: MetaModule): ValidationResult {
+  if (meta.description !== undefined) {
+    if (typeof meta.description !== 'string') {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'meta description with non-string value',
+          allowed: ['meta description with string value'],
+        },
+      };
+    }
+    if (meta.description.length > MAX_META_DESCRIPTION_LENGTH) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `meta description with ${meta.description.length} characters`,
+          allowed: [`meta description with max ${MAX_META_DESCRIPTION_LENGTH} characters`],
+        },
+      };
+    }
+  }
+
+  if (meta.author !== undefined) {
+    if (typeof meta.author !== 'string') {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'meta author with non-string value',
+          allowed: ['meta author with string value'],
+        },
+      };
+    }
+    if (meta.author.length > MAX_META_AUTHOR_LENGTH) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `meta author with ${meta.author.length} characters`,
+          allowed: [`meta author with max ${MAX_META_AUTHOR_LENGTH} characters`],
+        },
+      };
+    }
   }
 
   return { valid: true };
