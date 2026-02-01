@@ -21,6 +21,10 @@ export interface CompilerInput {
   slug: string;
   /** Page title */
   title: string;
+  /** Global site title (appended as "Page | Site") */
+  siteTitle?: string | null;
+  /** Override the full <title> tag content */
+  titleOverride?: string | null;
   /** Content blocks */
   content: ContentBlock[];
   /** Navigation module, null if disabled */

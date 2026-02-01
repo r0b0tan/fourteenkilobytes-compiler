@@ -70,8 +70,16 @@ export function flatten(input: CompilerInput): FlattenResult {
   }
   breakdown.icons = iconBytes;
 
-  // Build head content
-  const titleHtml = `<title>${escapeHtml(input.title)}</title>`;
+  // Build head content - compute final title
+  let finalTitle = input.title;
+  if (input.titleOverride) {
+    // Use override if provided
+    finalTitle = input.titleOverride;
+  } else if (input.siteTitle) {
+    // Append site title: "Page Title | Site Title"
+    finalTitle = `${input.title} | ${input.siteTitle}`;
+  }
+  const titleHtml = `<title>${escapeHtml(finalTitle)}</title>`;
   breakdown.title = measureBytes(titleHtml);
 
   let cssHtml = '';
