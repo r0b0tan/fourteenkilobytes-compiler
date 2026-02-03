@@ -22,8 +22,8 @@ import { isValidIconId, getAvailableIconIds } from './icons.js';
 /** Slug pattern: lowercase alphanumeric and hyphens */
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
-/** Href pattern: relative paths, fragments, or simple absolute paths */
-const HREF_PATTERN = /^(\/[a-z0-9._/-]*|#[a-z0-9-]*|[a-z0-9-]+\.html)$/i;
+/** Href pattern: relative paths, fragments, absolute URLs, or simple file references */
+const HREF_PATTERN = /^(\/[a-z0-9._/-]*|#[a-z0-9-]*|[a-z0-9-]+\.html|https?:\/\/[^\s]+|mailto:[^\s]+|tel:[^\s]+)$/i;
 
 /** Maximum title length in characters */
 const MAX_TITLE_LENGTH = 200;
@@ -163,14 +163,15 @@ function validateContentBlock(
   path: string
 ): ValidationResult {
   const blockType = block.type;
-  
-  if (blockType !== 'heading' && blockType !== 'paragraph' && blockType !== 'bloglist') {
+  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider'];
+
+  if (!allowedBlockTypes.includes(blockType)) {
     return {
       valid: false,
       error: {
         code: 'CONTENT_INVALID_ELEMENT',
         element: blockType,
-        allowed: ['heading', 'paragraph', 'bloglist'],
+        allowed: allowedBlockTypes,
         path,
       },
     };
@@ -194,14 +195,67 @@ function validateContentBlock(
     }
   }
 
-  // Bloglist blocks have no children to validate
-  if (blockType !== 'bloglist') {
-    // Validate inline nodes
-    for (let i = 0; i < block.children.length; i++) {
-      const node = block.children[i];
-      const result = validateInlineNode(node, `${path}.children[${i}]`);
-      if (!result.valid) return result;
+  // Validate list blocks
+  if (blockType === 'unordered-list' || blockType === 'ordered-list') {
+    if (!block.items || !Array.isArray(block.items)) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `${blockType} without items array`,
+          allowed: [`${blockType} with items array`],
+          path,
+        },
+      };
     }
+    for (let i = 0; i < block.items.length; i++) {
+      const item = block.items[i];
+      if (!item.children || !Array.isArray(item.children)) {
+        return {
+          valid: false,
+          error: {
+            code: 'CONTENT_INVALID_ELEMENT',
+            element: 'list item without children',
+            allowed: ['list item with children array'],
+            path: `${path}.items[${i}]`,
+          },
+        };
+      }
+      for (let j = 0; j < item.children.length; j++) {
+        const node = item.children[j];
+        const result = validateInlineNode(node, `${path}.items[${i}].children[${j}]`);
+        if (!result.valid) return result;
+      }
+    }
+    return { valid: true };
+  }
+
+  // Codeblock has plain text content, no inline nodes
+  if (blockType === 'codeblock') {
+    if (typeof block.content !== 'string') {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'codeblock without string content',
+          allowed: ['codeblock with string content'],
+          path,
+        },
+      };
+    }
+    return { valid: true };
+  }
+
+  // Bloglist and divider blocks have no children to validate
+  if (blockType === 'bloglist' || blockType === 'divider') {
+    return { valid: true };
+  }
+
+  // Validate inline nodes for paragraph, heading, blockquote
+  for (let i = 0; i < block.children.length; i++) {
+    const node = block.children[i];
+    const result = validateInlineNode(node, `${path}.children[${i}]`);
+    if (!result.valid) return result;
   }
 
   return { valid: true };
@@ -211,7 +265,7 @@ function validateContentBlock(
  * Validate an inline node recursively.
  */
 function validateInlineNode(node: InlineNode, path: string): ValidationResult {
-  const allowedTypes = ['text', 'linebreak', 'bold', 'italic', 'link'];
+  const allowedTypes = ['text', 'linebreak', 'bold', 'italic', 'underline', 'strikethrough', 'code', 'link'];
 
   if (!allowedTypes.includes(node.type)) {
     return {
@@ -236,7 +290,7 @@ function validateInlineNode(node: InlineNode, path: string): ValidationResult {
     if (!hrefResult.valid) return hrefResult;
   }
 
-  // Validate children for bold, italic, link
+  // Validate children for bold, italic, underline, strikethrough, code, link
   if ('children' in node && node.children) {
     for (let i = 0; i < node.children.length; i++) {
       const child = node.children[i];
@@ -258,7 +312,7 @@ export function validateHref(href: string, path?: string): ValidationResult {
       error: {
         code: 'INVALID_HREF',
         href,
-        reason: 'Must be relative path, fragment, or .html file',
+        reason: 'Must be relative path, fragment, URL, or .html file',
         path,
       },
     };

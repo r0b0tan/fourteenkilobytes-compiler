@@ -215,11 +215,34 @@ function flattenContentBlock(
     return renderBloglist(posts || []);
   }
 
+  if (block.type === 'divider') {
+    return '<hr>';
+  }
+
+  if (block.type === 'codeblock') {
+    return `<pre><code>${escapeHtml(block.content)}</code></pre>`;
+  }
+
+  if (block.type === 'unordered-list' || block.type === 'ordered-list') {
+    const tag = block.type === 'unordered-list' ? 'ul' : 'ol';
+    const items = block.items
+      .map((item) => {
+        const inlineHtml = flattenInlineNodes(item.children, icons, 'content');
+        return `<li>${inlineHtml}</li>`;
+      })
+      .join('\n');
+    return `<${tag}>\n${items}\n</${tag}>`;
+  }
+
   const inlineHtml = flattenInlineNodes(block.children, icons, 'content');
 
   if (block.type === 'heading') {
     const level = block.level ?? 1;
     return `<h${level}>${inlineHtml}</h${level}>`;
+  }
+
+  if (block.type === 'blockquote') {
+    return `<blockquote>${inlineHtml}</blockquote>`;
   }
 
   return `<p>${inlineHtml}</p>`;
@@ -283,6 +306,15 @@ function flattenInlineNode(
 
     case 'italic':
       return `<i>${flattenInlineNodes(node.children, icons, placement)}</i>`;
+
+    case 'underline':
+      return `<u>${flattenInlineNodes(node.children, icons, placement)}</u>`;
+
+    case 'strikethrough':
+      return `<s>${flattenInlineNodes(node.children, icons, placement)}</s>`;
+
+    case 'code':
+      return `<code>${flattenInlineNodes(node.children, icons, placement)}</code>`;
 
     case 'link': {
       const childHtml = flattenInlineNodes(node.children, icons, placement);

@@ -62,9 +62,37 @@ export interface BloglistBlock {
   type: 'bloglist';
 }
 
-export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock;
+export interface ListItem {
+  children: InlineNode[];
+}
 
-export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | LinkNode;
+export interface UnorderedListBlock {
+  type: 'unordered-list';
+  items: ListItem[];
+}
+
+export interface OrderedListBlock {
+  type: 'ordered-list';
+  items: ListItem[];
+}
+
+export interface BlockquoteBlock {
+  type: 'blockquote';
+  children: InlineNode[];
+}
+
+export interface CodeBlockBlock {
+  type: 'codeblock';
+  content: string;
+}
+
+export interface DividerBlock {
+  type: 'divider';
+}
+
+export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock;
+
+export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | UnderlineNode | StrikethroughNode | CodeNode | LinkNode;
 
 export interface TextNode {
   type: 'text';
@@ -82,6 +110,21 @@ export interface BoldNode {
 
 export interface ItalicNode {
   type: 'italic';
+  children: InlineNode[];
+}
+
+export interface UnderlineNode {
+  type: 'underline';
+  children: InlineNode[];
+}
+
+export interface StrikethroughNode {
+  type: 'strikethrough';
+  children: InlineNode[];
+}
+
+export interface CodeNode {
+  type: 'code';
   children: InlineNode[];
 }
 
