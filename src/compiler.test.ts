@@ -482,3 +482,100 @@ describe('headings', () => {
     }
   });
 });
+
+describe('bloglist', () => {
+  /**
+   * Create mock posts for testing.
+   */
+  function createMockPosts(count: number) {
+    const posts = [];
+    for (let i = 1; i <= count; i++) {
+      posts.push({
+        slug: `test-post-${i}`,
+        title: `Test Post Number ${i}`,
+        publishedAt: `2026-01-${String(i).padStart(2, '0')}T12:00:00+00:00`,
+        status: 'published',
+        pageType: 'post',
+      });
+    }
+    return posts;
+  }
+
+  it('renders bloglist with posts', () => {
+    const posts = createMockPosts(5);
+    const input = createMinimalInput({
+      content: [
+        { type: 'bloglist', limit: 5 },
+      ],
+      posts,
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('<ul class="posts">'));
+      assert.ok(html.includes('Test Post Number 1'));
+      assert.ok(html.includes('Test Post Number 5'));
+    }
+  });
+
+  it('paginates large bloglist across multiple pages', () => {
+    // Create 200 posts - should require multiple pages (each ~120 bytes = ~24KB total)
+    const posts = createMockPosts(200);
+    const input = createMinimalInput({
+      content: [
+        { type: 'heading', level: 1, children: [{ type: 'text', text: 'Archive' }] },
+        { type: 'bloglist', limit: null }, // null = no limit, show all
+      ],
+      posts,
+      allowPagination: true,
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      // Should have multiple pages
+      assert.ok(result.pages.length > 1, `Expected multiple pages, got ${result.pages.length}`);
+
+      // Each page should be within size limit
+      for (const page of result.pages) {
+        assert.ok(page.bytes <= SIZE_LIMIT, `Page ${page.pageNumber} exceeds limit: ${page.bytes}`);
+      }
+
+      // Each page with bloglist items should have proper ul wrapper
+      for (const page of result.pages) {
+        if (page.html.includes('<li class="post">')) {
+          assert.ok(page.html.includes('<ul class="posts">'), `Page ${page.pageNumber} missing ul wrapper`);
+          assert.ok(page.html.includes('</ul>'), `Page ${page.pageNumber} missing ul close tag`);
+        }
+      }
+
+      // Check that pagination nav is present
+      assert.ok(result.pages[0].html.includes('<nav aria-label="pagination">'));
+    }
+  });
+
+  it('includes archive link when configured', () => {
+    const posts = createMockPosts(5);
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'bloglist',
+          limit: 5,
+          archiveLink: { href: '/archive', text: 'View all posts' },
+        },
+      ],
+      posts,
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('<p class="archive-link">'));
+      assert.ok(html.includes('View all posts'));
+      assert.ok(html.includes('/archive'));
+    }
+  });
+});

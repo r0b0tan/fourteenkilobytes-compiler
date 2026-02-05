@@ -16,6 +16,7 @@ import type {
   CssModule,
   MetaModule,
   IconReference,
+  BloglistBlock,
 } from './types.js';
 import { isValidIconId, getAvailableIconIds } from './icons.js';
 
@@ -246,8 +247,15 @@ function validateContentBlock(
     return { valid: true };
   }
 
-  // Bloglist and divider blocks have no children to validate
-  if (blockType === 'bloglist' || blockType === 'divider') {
+  // Divider blocks have no children to validate
+  if (blockType === 'divider') {
+    return { valid: true };
+  }
+
+  // Validate bloglist block options
+  if (blockType === 'bloglist') {
+    const bloglistResult = validateBloglistBlock(block as BloglistBlock, path);
+    if (!bloglistResult.valid) return bloglistResult;
     return { valid: true };
   }
 
@@ -452,6 +460,60 @@ export function validateMeta(meta: MetaModule): ValidationResult {
           code: 'CONTENT_INVALID_ELEMENT',
           element: `meta author with ${meta.author.length} characters`,
           allowed: [`meta author with max ${MAX_META_AUTHOR_LENGTH} characters`],
+        },
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate bloglist block options.
+ */
+export function validateBloglistBlock(block: BloglistBlock, path: string): ValidationResult {
+  // Validate limit if present
+  if (block.limit !== undefined && block.limit !== null) {
+    if (typeof block.limit !== 'number' || !Number.isInteger(block.limit) || block.limit < 1) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `bloglist with invalid limit: ${block.limit}`,
+          allowed: ['bloglist with positive integer limit or no limit'],
+          path,
+        },
+      };
+    }
+  }
+
+  // Validate archiveLink if present
+  if (block.archiveLink !== undefined) {
+    if (typeof block.archiveLink !== 'object' || block.archiveLink === null) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'bloglist with invalid archiveLink',
+          allowed: ['bloglist with archiveLink object containing href and text'],
+          path,
+        },
+      };
+    }
+
+    // Validate archiveLink.href
+    const hrefResult = validateHref(block.archiveLink.href, `${path}.archiveLink.href`);
+    if (!hrefResult.valid) return hrefResult;
+
+    // Validate archiveLink.text
+    if (!block.archiveLink.text || block.archiveLink.text.trim().length === 0) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'bloglist archiveLink with empty text',
+          allowed: ['bloglist archiveLink with non-empty text'],
+          path: `${path}.archiveLink.text`,
         },
       };
     }

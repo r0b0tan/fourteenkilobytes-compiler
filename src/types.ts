@@ -58,8 +58,19 @@ export interface HeadingBlock {
   children: InlineNode[];
 }
 
+export interface BloglistArchiveLink {
+  /** Link href, e.g. "/archiv" */
+  href: string;
+  /** Link text, e.g. "Alle Posts anzeigen →" */
+  text: string;
+}
+
 export interface BloglistBlock {
   type: 'bloglist';
+  /** Maximum number of posts to display. Default: 20. Use null/undefined for no limit. */
+  limit?: number | null;
+  /** Optional link to archive page, shown below the list */
+  archiveLink?: BloglistArchiveLink;
 }
 
 export interface ListItem {
@@ -197,6 +208,8 @@ export interface FlattenedContentBlock {
   html: string;
   bytes: number;
   sourceIndex: number;
+  /** Block type for special pagination handling */
+  blockType?: 'bloglist-item' | 'bloglist-archive-link';
 }
 
 // =============================================================================

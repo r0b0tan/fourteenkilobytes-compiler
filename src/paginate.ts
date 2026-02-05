@@ -57,7 +57,7 @@ function generatePaginationNav(
     }
   }
 
-  return `<nav aria-label="pagination">\n${links.join('\n')}\n</nav>`;
+  return `<div class="pagination">\n${links.join('\n')}\n</div>`;
 }
 
 /**
@@ -88,6 +88,69 @@ function calculateFixedOverhead(breakdown: ModuleBreakdown): number {
   );
 }
 
+/** Bytes for ul wrapper: '<ul class="posts">\n' + '\n</ul>' */
+const BLOGLIST_WRAPPER_OPEN = '<ul class="posts">\n';
+const BLOGLIST_WRAPPER_CLOSE = '\n</ul>';
+const BLOGLIST_WRAPPER_BYTES = measureBytes(BLOGLIST_WRAPPER_OPEN) + measureBytes(BLOGLIST_WRAPPER_CLOSE);
+
+/**
+ * Assemble content HTML from blocks, wrapping consecutive bloglist items in ul.
+ */
+function assembleContentHtml(blocks: FlattenedContentBlock[]): string {
+  if (blocks.length === 0) return '';
+
+  const parts: string[] = [];
+  let inBloglist = false;
+  let bloglistItems: string[] = [];
+
+  for (const block of blocks) {
+    if (block.blockType === 'bloglist-item') {
+      if (!inBloglist) {
+        inBloglist = true;
+        bloglistItems = [];
+      }
+      bloglistItems.push(block.html);
+    } else {
+      // Close any open bloglist
+      if (inBloglist) {
+        parts.push(BLOGLIST_WRAPPER_OPEN + bloglistItems.join('\n') + BLOGLIST_WRAPPER_CLOSE);
+        inBloglist = false;
+        bloglistItems = [];
+      }
+      parts.push(block.html);
+    }
+  }
+
+  // Close any remaining bloglist
+  if (inBloglist) {
+    parts.push(BLOGLIST_WRAPPER_OPEN + bloglistItems.join('\n') + BLOGLIST_WRAPPER_CLOSE);
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Calculate the byte overhead for bloglist wrapping in a set of blocks.
+ * Returns the additional bytes needed for <ul> wrappers.
+ */
+function calculateBloglistWrapperOverhead(blocks: FlattenedContentBlock[]): number {
+  let overhead = 0;
+  let inBloglist = false;
+
+  for (const block of blocks) {
+    if (block.blockType === 'bloglist-item') {
+      if (!inBloglist) {
+        inBloglist = true;
+        overhead += BLOGLIST_WRAPPER_BYTES;
+      }
+    } else {
+      inBloglist = false;
+    }
+  }
+
+  return overhead;
+}
+
 /**
  * Paginate content blocks to fit within size limit.
  *
@@ -113,10 +176,13 @@ export function paginate(
   const contentNewlines = Math.max(0, contentBlocks.length - 1);
   const totalContentWithNewlines = totalContentBytes + contentNewlines;
 
+  // Account for bloglist wrapper overhead
+  const bloglistWrapperOverhead = calculateBloglistWrapperOverhead(contentBlocks);
+
   // Check if pagination is needed
-  if (fixedOverhead + totalContentWithNewlines <= SIZE_LIMIT) {
+  if (fixedOverhead + totalContentWithNewlines + bloglistWrapperOverhead <= SIZE_LIMIT) {
     // No pagination needed
-    const contentHtml = contentBlocks.map((b) => b.html).join('\n');
+    const contentHtml = assembleContentHtml(contentBlocks);
     return {
       success: true,
       pages: [
@@ -163,6 +229,7 @@ export function paginate(
     pages = [];
     let currentPageBlocks: FlattenedContentBlock[] = [];
     let currentPageBytes = 0;
+    let currentPageHasBloglist = false; // Track if current page has bloglist wrapper
     let pageNumber = 1;
 
     for (let i = 0; i < contentBlocks.length; i++) {
@@ -180,12 +247,24 @@ export function paginate(
 
       // Calculate size with this block added
       const newlineBytes = currentPageBlocks.length > 0 ? 1 : 0;
-      const candidateBytes = currentPageBytes + newlineBytes + block.bytes;
+      let candidateBytes = currentPageBytes + newlineBytes + block.bytes;
+
+      // Account for bloglist wrapper overhead
+      if (block.blockType === 'bloglist-item' && !currentPageHasBloglist) {
+        // Starting a new bloglist on this page adds wrapper overhead
+        candidateBytes += BLOGLIST_WRAPPER_BYTES;
+      }
 
       if (candidateBytes <= availableBudget) {
         // Block fits
         currentPageBlocks.push(block);
         currentPageBytes = candidateBytes;
+        if (block.blockType === 'bloglist-item') {
+          currentPageHasBloglist = true;
+        } else {
+          // Non-bloglist block closes any open bloglist context for next iteration
+          currentPageHasBloglist = false;
+        }
       } else {
         // Block doesn't fit
 
@@ -203,7 +282,7 @@ export function paginate(
         }
 
         // Emit current page
-        const contentHtml = currentPageBlocks.map((b) => b.html).join('\n');
+        const contentHtml = assembleContentHtml(currentPageBlocks);
         const paginationHtml = generatePaginationNav(
           baseSlug,
           pageNumber,
@@ -225,13 +304,20 @@ export function paginate(
         // Start new page with current block
         pageNumber++;
         currentPageBlocks = [block];
+        // Calculate bytes for new page start
         currentPageBytes = block.bytes;
+        if (block.blockType === 'bloglist-item') {
+          currentPageBytes += BLOGLIST_WRAPPER_BYTES;
+          currentPageHasBloglist = true;
+        } else {
+          currentPageHasBloglist = false;
+        }
       }
     }
 
     // Emit final page
     if (currentPageBlocks.length > 0) {
-      const contentHtml = currentPageBlocks.map((b) => b.html).join('\n');
+      const contentHtml = assembleContentHtml(currentPageBlocks);
       const paginationHtml = generatePaginationNav(
         baseSlug,
         pageNumber,

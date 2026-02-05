@@ -14,6 +14,7 @@ import type {
   FlattenedContentBlock,
   ModuleBreakdown,
   Post,
+  BloglistBlock,
 } from './types.js';
 import { measureBytes, normalizeLineEndings } from './measure.js';
 import { getIconSvg, getIconBytes } from './icons.js';
@@ -132,16 +133,26 @@ export function flatten(input: CompilerInput): FlattenResult {
   }
 
   // Build content blocks individually for pagination support
-  const contentBlocks: FlattenedContentBlock[] = input.content.map(
-    (block, index) => {
+  // Bloglist blocks are expanded into individual items for pagination
+  const contentBlocks: FlattenedContentBlock[] = [];
+  input.content.forEach((block, index) => {
+    if (block.type === 'bloglist') {
+      // Expand bloglist into individual items for pagination
+      const bloglistBlocks = flattenBloglistToItems(
+        input.posts || [],
+        block as BloglistBlock,
+        index
+      );
+      contentBlocks.push(...bloglistBlocks);
+    } else {
       const html = flattenContentBlock(block, input.icons, input.posts);
-      return {
+      contentBlocks.push({
         html,
         bytes: measureBytes(html),
         sourceIndex: index,
-      };
+      });
     }
-  );
+  });
 
   // Calculate total content bytes
   const contentHtml = contentBlocks.map((b) => b.html).join('\n');
@@ -212,7 +223,7 @@ function flattenContentBlock(
   posts?: Post[]
 ): string {
   if (block.type === 'bloglist') {
-    return renderBloglist(posts || []);
+    return renderBloglist(posts || [], block as BloglistBlock);
   }
 
   if (block.type === 'divider') {
@@ -248,19 +259,28 @@ function flattenContentBlock(
   return `<p>${inlineHtml}</p>`;
 }
 
+/** Default limit for bloglist if not specified */
+const DEFAULT_BLOGLIST_LIMIT = 20;
+
 /**
- * Render a bloglist from post metadata.
+ * Render a bloglist from post metadata (legacy, single block).
+ * Used when bloglist doesn't need pagination.
  */
-function renderBloglist(posts: Post[]): string {
+function renderBloglist(posts: Post[], block?: BloglistBlock): string {
   const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
-  
+
   if (published.length === 0) {
     return '<p class="empty">Noch keine Posts.</p>';
   }
-  
+
   published.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-  
-  const items = published.map(post => {
+
+  // Apply limit: use block.limit if set, otherwise default to 20
+  // null means "no limit" (show all posts)
+  const limit = block?.limit === null ? published.length : (block?.limit ?? DEFAULT_BLOGLIST_LIMIT);
+  const limitedPosts = published.slice(0, limit);
+
+  const items = limitedPosts.map(post => {
     const date = new Date(post.publishedAt).toLocaleDateString('de-DE', {
       year: 'numeric',
       month: 'long',
@@ -268,8 +288,82 @@ function renderBloglist(posts: Post[]): string {
     });
     return `<li class="post"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
   }).join('\n');
-  
-  return `<ul class="posts">\n${items}\n</ul>`;
+
+  let html = `<ul class="posts">\n${items}\n</ul>`;
+
+  // Add archive link if configured
+  if (block?.archiveLink) {
+    html += `\n<p class="archive-link"><a href="${escapeHtml(block.archiveLink.href)}">${escapeHtml(block.archiveLink.text)}</a></p>`;
+  }
+
+  return html;
+}
+
+/**
+ * Flatten a bloglist into individual items for pagination support.
+ * Each post becomes a separate FlattenedContentBlock with blockType='bloglist-item'.
+ * The archive link (if present) becomes a separate block with blockType='bloglist-archive-link'.
+ */
+function flattenBloglistToItems(
+  posts: Post[],
+  block: BloglistBlock,
+  sourceIndex: number
+): FlattenedContentBlock[] {
+  const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
+
+  if (published.length === 0) {
+    // Return empty message as a single block
+    const html = '<p class="empty">Noch keine Posts.</p>';
+    return [{
+      html,
+      bytes: measureBytes(html),
+      sourceIndex,
+    }];
+  }
+
+  published.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+  // Apply limit
+  const limit = block?.limit === null ? published.length : (block?.limit ?? DEFAULT_BLOGLIST_LIMIT);
+  const limitedPosts = published.slice(0, limit);
+
+  // Create individual blocks for each post item
+  const blocks: FlattenedContentBlock[] = limitedPosts.map(post => {
+    const date = new Date(post.publishedAt).toLocaleDateString('de-DE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const html = `<li class="post"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
+    return {
+      html,
+      bytes: measureBytes(html),
+      sourceIndex,
+      blockType: 'bloglist-item' as const,
+    };
+  });
+
+  // Add archive link as separate block if configured
+  if (block?.archiveLink) {
+    const archiveHtml = `<p class="archive-link"><a href="${escapeHtml(block.archiveLink.href)}">${escapeHtml(block.archiveLink.text)}</a></p>`;
+    blocks.push({
+      html: archiveHtml,
+      bytes: measureBytes(archiveHtml),
+      sourceIndex,
+      blockType: 'bloglist-archive-link' as const,
+    });
+  } else if (block?.limit === null) {
+    // For full lists (archive page) with no archive link, add "End of list" marker
+    const endHtml = '<p class="end-of-list">— Ende der Liste —</p>';
+    blocks.push({
+      html: endHtml,
+      bytes: measureBytes(endHtml),
+      sourceIndex,
+      blockType: 'bloglist-archive-link' as const, // Same type so it's handled the same way
+    });
+  }
+
+  return blocks;
 }
 
 /**
