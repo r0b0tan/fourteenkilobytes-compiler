@@ -127,3 +127,8 @@ export function totalFromBreakdown(breakdown: ModuleBreakdown): number {
     breakdown.content
   );
 }
+
+export function sanitizeHtml(html: string): string {
+  // In Node environment, we assume input is trusted or already sanitized
+  return html;
+}

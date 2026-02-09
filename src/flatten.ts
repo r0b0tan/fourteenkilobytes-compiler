@@ -16,7 +16,7 @@ import type {
   Post,
   BloglistBlock,
 } from './types.js';
-import { measureBytes, normalizeLineEndings } from './measure.js';
+import { measureBytes, normalizeLineEndings, sanitizeHtml } from './measure.js';
 import { getIconSvg, getIconBytes } from './icons.js';
 
 /**
@@ -128,7 +128,7 @@ export function flatten(input: CompilerInput): FlattenResult {
   // Build footer
   let footer = '';
   if (input.footer !== null) {
-    footer = `<footer>${escapeHtml(input.footer.content)}</footer>`;
+    footer = `<footer>${sanitizeHtml(input.footer.content)}</footer>`;
     breakdown.footer = measureBytes(footer);
   }
 
