@@ -164,7 +164,7 @@ function validateContentBlock(
   path: string
 ): ValidationResult {
   const blockType = block.type;
-  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider'];
+  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'section'];
 
   if (!allowedBlockTypes.includes(blockType)) {
     return {
@@ -256,6 +256,17 @@ function validateContentBlock(
   if (blockType === 'bloglist') {
     const bloglistResult = validateBloglistBlock(block as BloglistBlock, path);
     if (!bloglistResult.valid) return bloglistResult;
+    return { valid: true };
+  }
+
+  // Validate section blocks (nested blocks)
+  if (blockType === 'section') {
+     if (block.children) {
+      for (let i = 0; i < block.children.length; i++) {
+        const result = validateContentBlock(block.children[i], `${path}.children[${i}]`);
+        if (!result.valid) return result;
+      }
+    }
     return { valid: true };
   }
 

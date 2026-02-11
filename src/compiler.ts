@@ -317,3 +317,18 @@ export function formatResult(result: CompilerResult): string {
 
 // Re-export types for convenience
 export type { CompilerInput, CompilerResult, CompilerSuccess, CompilerFailure };
+
+/**
+ * Get CSS class for a section pattern.
+ * Used by editor for preview.
+ */
+export function getPatternClass(pattern: string): string {
+  switch (pattern) {
+    case 'dots': return 'bg-pattern-dots';
+    case 'grid': return 'bg-pattern-grid';
+    case 'stripes': return 'bg-pattern-stripes';
+    case 'cross': return 'bg-pattern-cross';
+    case 'hexagons': return 'bg-pattern-hexagons';
+    default: return '';
+  }
+}

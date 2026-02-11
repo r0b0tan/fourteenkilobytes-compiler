@@ -5,7 +5,7 @@
  */
 
 // Core compiler
-export { compile, dryRun, verifyDeterminism, formatResult, formatBreakdown } from './compiler.js';
+export { compile, dryRun, verifyDeterminism, formatResult, formatBreakdown, getPatternClass } from './compiler.js';
 
 // Types
 export type {

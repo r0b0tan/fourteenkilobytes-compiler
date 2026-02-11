@@ -84,8 +84,9 @@ export function flatten(input: CompilerInput): FlattenResult {
   breakdown.title = measureBytes(titleHtml);
 
   let cssHtml = '';
-  if (input.css !== null) {
-    cssHtml = `<style>${input.css.rules}</style>`;
+  const cssRules = input.css ? input.css.rules.trim() : '';
+  if (cssRules) {
+    cssHtml = `<style>${cssRules}</style>`;
     breakdown.css = measureBytes(cssHtml);
   }
 
@@ -121,7 +122,7 @@ export function flatten(input: CompilerInput): FlattenResult {
     const navItems = input.navigation.items
       .map((item) => `<a href="${escapeHtml(item.href)}">${escapeHtml(item.text)}</a>`)
       .join('\n');
-    navigation = `<nav>\n${navItems}\n</nav>`;
+    navigation = `<header><nav>\n${navItems}\n</nav></header>`;
     breakdown.navigation = measureBytes(navigation);
   }
 
@@ -162,6 +163,8 @@ export function flatten(input: CompilerInput): FlattenResult {
   const doctype = '<!DOCTYPE html>';
   const htmlOpen = '<html lang="en">';
   const bodyOpen = '<body>';
+  const mainOpen = '<main>';
+  const mainClose = '</main>';
   const bodyClose = '</body>';
   const htmlClose = '</html>';
 
@@ -185,6 +188,10 @@ export function flatten(input: CompilerInput): FlattenResult {
     measureBytes('\n') +
     measureBytes(bodyOpen) +
     measureBytes('\n') +
+    measureBytes(mainOpen) +
+    measureBytes('\n') +
+    measureBytes(mainClose) +
+    measureBytes('\n') +
     measureBytes(bodyClose) +
     measureBytes('\n') +
     measureBytes(htmlClose);
@@ -200,7 +207,9 @@ export function flatten(input: CompilerInput): FlattenResult {
     head,
     bodyOpen,
     navigation,
+    mainOpen,
     content: contentHtml,
+    mainClose,
     footer,
     bodyClose,
     htmlClose,
@@ -243,6 +252,43 @@ function flattenContentBlock(
       })
       .join('\n');
     return `<${tag}>\n${items}\n</${tag}>`;
+  }
+
+  if (block.type === 'section') {
+    const childrenHtml = block.children
+      .map(child => flattenContentBlock(child, icons, posts))
+      .join('\n');
+
+    // Build style string — all values as CSS custom properties
+    // so user CSS can override them without !important
+    const styles: string[] = [];
+    if (block.background) styles.push(`--sb:${block.background}`);
+    if (block.color) styles.push(`--sc:${block.color}`);
+    if (block.patternColor && block.patternOpacity) {
+      const hex = block.patternColor;
+      const opacity = block.patternOpacity;
+       const r = parseInt(hex.substring(1,3), 16);
+       const g = parseInt(hex.substring(3,5), 16);
+       const b = parseInt(hex.substring(5,7), 16);
+       styles.push(`--pc:rgba(${r},${g},${b},${opacity})`);
+    }
+    if (block.width) styles.push(`--sw:${block.width}`);
+    if (block.padding) styles.push(`--sp:${block.padding}`);
+    if (block.align) styles.push(`--sa:${block.align}`);
+
+    const styleAttr = styles.length > 0 ? ` style="${styles.join(';')}"` : '';
+
+    // Build class string
+    const classes = ['section'];
+    if (block.pattern) {
+      if (block.pattern === 'dots') classes.push('bg-pattern-dots');
+      if (block.pattern === 'grid') classes.push('bg-pattern-grid');
+      if (block.pattern === 'stripes') classes.push('bg-pattern-stripes');
+      if (block.pattern === 'cross') classes.push('bg-pattern-cross');
+      if (block.pattern === 'hexagons') classes.push('bg-pattern-hexagons');
+    }
+
+    return `<div class="${classes.join(' ')}"${styleAttr}>${childrenHtml}</div>`;
   }
 
   const inlineHtml = flattenInlineNodes(block.children, icons, 'content');
@@ -432,9 +478,13 @@ export function assemblePage(page: FlattenedPage): string {
     parts.push(page.navigation);
   }
 
+  parts.push(page.mainOpen);
+
   if (page.content) {
     parts.push(page.content);
   }
+
+  parts.push(page.mainClose);
 
   if (page.footer) {
     parts.push(page.footer);
@@ -459,6 +509,8 @@ export function assemblePageWithContent(
     parts.push(page.navigation);
   }
 
+  parts.push(page.mainOpen);
+
   if (contentHtml) {
     parts.push(contentHtml);
   }
@@ -466,6 +518,8 @@ export function assemblePageWithContent(
   if (paginationHtml) {
     parts.push(paginationHtml);
   }
+
+  parts.push(page.mainClose);
 
   if (page.footer) {
     parts.push(page.footer);
@@ -475,4 +529,6 @@ export function assemblePageWithContent(
 
   return normalizeLineEndings(parts.join('\n'));
 }
+
+
 

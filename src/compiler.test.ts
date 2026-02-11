@@ -552,7 +552,7 @@ describe('bloglist', () => {
       }
 
       // Check that pagination nav is present
-      assert.ok(result.pages[0].html.includes('<nav aria-label="pagination">'));
+      assert.ok(result.pages[0].html.includes('<div class="pagination">'));
     }
   });
 

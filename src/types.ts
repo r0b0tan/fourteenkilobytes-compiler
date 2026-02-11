@@ -101,7 +101,20 @@ export interface DividerBlock {
   type: 'divider';
 }
 
-export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock;
+export interface SectionBlock {
+  type: 'section';
+  background?: string;
+  color?: string;
+  pattern?: string;
+  patternColor?: string;
+  patternOpacity?: string;
+  width?: string;
+  padding?: string;
+  align?: 'left' | 'center' | 'right';
+  children: ContentBlock[];
+}
+
+export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SectionBlock;
 
 export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | UnderlineNode | StrikethroughNode | CodeNode | LinkNode;
 
@@ -198,7 +211,9 @@ export interface FlattenedPage {
   head: string;
   bodyOpen: string;
   navigation: string;
+  mainOpen: string;
   content: string;
+  mainClose: string;
   footer: string;
   bodyClose: string;
   htmlClose: string;
