@@ -113,7 +113,7 @@ export function flatten(input: CompilerInput): FlattenResult {
     }
   }
 
-  const headContent = `<meta charset="utf-8">\n${titleHtml}${faviconHtml ? '\n' + faviconHtml : ''}${metaHtml ? '\n' + metaHtml : ''}${cssHtml ? '\n' + cssHtml : ''}`;
+  const headContent = `<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n${titleHtml}${faviconHtml ? '\n' + faviconHtml : ''}${metaHtml ? '\n' + metaHtml : ''}${cssHtml ? '\n' + cssHtml : ''}`;
   const head = `<head>\n${headContent}\n</head>`;
 
   // Build navigation
@@ -170,9 +170,9 @@ export function flatten(input: CompilerInput): FlattenResult {
 
   // Calculate head structure bytes WITHOUT title, favicon, meta, and css content
   // (title, favicon, meta, and css are tracked separately in breakdown)
-  // Head structure: <head>\n<meta charset="utf-8">\n[title][optional \n favicon][optional \n meta][optional \n css]\n</head>
+  // Head structure: <head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n[title][optional \n favicon][optional \n meta][optional \n css]\n</head>
   const headStructureBytes =
-    measureBytes('<head>\n<meta charset="utf-8">\n') +
+    measureBytes('<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n') +
     (faviconHtml ? measureBytes('\n') : 0) + // newline between title and favicon
     (metaHtml ? measureBytes('\n') : 0) + // newline between favicon/title and meta
     (cssHtml ? measureBytes('\n') : 0) + // newline between meta/title and css
@@ -252,6 +252,47 @@ function flattenContentBlock(
       })
       .join('\n');
     return `<${tag}>\n${items}\n</${tag}>`;
+  }
+
+  if (block.type === 'layout') {
+    // Build grid cells HTML
+    const cellsHtml = block.cells
+      .map((cell) => {
+        const cellContent = cell.children
+          .map((child) => flattenContentBlock(child, icons, posts))
+          .join('\n');
+        const cellStyle = cell.textAlign ? ` style="text-align:${cell.textAlign}"` : '';
+        return `<div class="cell"${cellStyle}>${cellContent}</div>`;
+      })
+      .join('\n');
+
+    // Build style string for grid
+    const styles: string[] = [];
+    styles.push(`display:grid`);
+    styles.push(`grid-template-columns:repeat(${block.columns},1fr)`);
+
+    if (block.rows) {
+      styles.push(`grid-template-rows:repeat(${block.rows},auto)`);
+    }
+
+    // Handle gaps
+    const rowGap = block.rowGap || '0';
+    const colGap = block.columnGap || '0';
+    if (rowGap === colGap) {
+      styles.push(`gap:${rowGap}`);
+    } else {
+      styles.push(`gap:${rowGap} ${colGap}`);
+    }
+
+    const styleAttr = ` style="${styles.join(';')}"`;
+
+    // Build class string
+    const classes = ['layout'];
+    if (block.className) {
+      classes.push(block.className);
+    }
+
+    return `<div class="${classes.join(' ')}"${styleAttr}>${cellsHtml}</div>`;
   }
 
   if (block.type === 'section') {

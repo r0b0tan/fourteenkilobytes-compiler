@@ -114,7 +114,22 @@ export interface SectionBlock {
   children: ContentBlock[];
 }
 
-export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SectionBlock;
+export interface LayoutCell {
+  children: ContentBlock[];
+  textAlign?: 'left' | 'center' | 'right' | null;
+}
+
+export interface LayoutBlock {
+  type: 'layout';
+  columns: number;
+  rows?: number | null;
+  columnGap?: string;
+  rowGap?: string;
+  className?: string;
+  cells: LayoutCell[];
+}
+
+export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SectionBlock | LayoutBlock;
 
 export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | UnderlineNode | StrikethroughNode | CodeNode | LinkNode;
 
