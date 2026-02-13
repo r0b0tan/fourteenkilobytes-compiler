@@ -30,6 +30,37 @@ const HTML_ESCAPE: Record<string, string> = {
   "'": '&#39;',
 };
 
+const GENERATED_CLASS_MAP: Record<string, string> = {
+  layout: 'l',
+  cell: 'c',
+  'bg-pattern-dots': 'pd',
+  'bg-pattern-grid': 'pg',
+  'bg-pattern-stripes': 'ps',
+  'bg-pattern-cross': 'pc',
+  'bg-pattern-hexagons': 'ph',
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mangleGeneratedClass(className: string, enabled: boolean): string {
+  if (!enabled) return className;
+  return GENERATED_CLASS_MAP[className] || className;
+}
+
+function mangleCssClassSelectors(css: string, enabled: boolean): string {
+  if (!enabled || !css) return css;
+
+  let result = css;
+  for (const [fromClass, toClass] of Object.entries(GENERATED_CLASS_MAP)) {
+    if (fromClass === toClass) continue;
+    const selectorRegex = new RegExp(`\\.${escapeRegExp(fromClass)}(?![a-zA-Z0-9_-])`, 'g');
+    result = result.replace(selectorRegex, `.${toClass}`);
+  }
+  return result;
+}
+
 /**
  * Escape HTML special characters.
  */
@@ -120,7 +151,9 @@ export function flatten(input: CompilerInput): FlattenResult {
   breakdown.title = measureBytes(titleHtml);
 
   let cssHtml = '';
-  const cssRules = input.css ? input.css.rules.trim() : '';
+  const classManglingEnabled = input.classMangling === true;
+  const rawCssRules = input.css ? input.css.rules.trim() : '';
+  const cssRules = mangleCssClassSelectors(rawCssRules, classManglingEnabled);
   if (cssRules) {
     cssHtml = `<style>${cssRules}</style>`;
     breakdown.css = measureBytes(cssHtml);
@@ -182,7 +215,7 @@ export function flatten(input: CompilerInput): FlattenResult {
       );
       contentBlocks.push(...bloglistBlocks);
     } else {
-      const html = flattenContentBlock(block, input.icons, input.posts);
+      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled);
       contentBlocks.push({
         html,
         bytes: measureBytes(html),
@@ -265,7 +298,8 @@ export function flatten(input: CompilerInput): FlattenResult {
 function flattenContentBlock(
   block: ContentBlock,
   icons: { id: string; placement: string; index: number }[],
-  posts?: Post[]
+  posts?: Post[],
+  classManglingEnabled: boolean = false
 ): string {
   if (block.type === 'bloglist') {
     const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock);
@@ -302,14 +336,14 @@ function flattenContentBlock(
     const cellsHtml = block.cells
       .map((cell) => {
         const cellContent = cell.children
-          .map((child) => flattenContentBlock(child, icons, posts))
+          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled))
           .join('\n');
         const cellStyles: string[] = [];
         if (cell.textAlign && cell.textAlign !== 'left') cellStyles.push(`text-align:${cell.textAlign}`);
         if (cell.padding && cell.padding !== '10px') cellStyles.push(`padding:${cell.padding}`);
         if (cell.margin && cell.margin !== '10px') cellStyles.push(`margin:${cell.margin}`);
         const cellStyle = cellStyles.length ? ` style="${cellStyles.join(';')}"` : '';
-        return `<div class="cell"${cellStyle}>${cellContent}</div>`;
+        return `<div class="${mangleGeneratedClass('cell', classManglingEnabled)}"${cellStyle}>${cellContent}</div>`;
       })
       .join('\n');
 
@@ -340,7 +374,7 @@ function flattenContentBlock(
     const styleAttr = ` style="${styles.join(';')}"`;
 
     // Build class string
-    const classes = ['layout'];
+    const classes = [mangleGeneratedClass('layout', classManglingEnabled)];
     if (block.className) {
       classes.push(block.className);
     }
@@ -350,7 +384,7 @@ function flattenContentBlock(
 
   if (block.type === 'section') {
     const childrenHtml = block.children
-      .map(child => flattenContentBlock(child, icons, posts))
+      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled))
       .join('\n');
 
     // Build style string — all values as CSS custom properties
@@ -358,7 +392,7 @@ function flattenContentBlock(
     const styles: string[] = [];
     if (block.background && block.background !== 'transparent') styles.push(`--sb:${block.background}`);
     if (block.color && block.color !== 'inherit') styles.push(`--sc:${block.color}`);
-    if (block.pattern && block.patternColor && block.patternOpacity && block.patternOpacity !== '0' && block.patternOpacity !== 0) {
+    if (block.pattern && block.patternColor && block.patternOpacity && block.patternOpacity !== '0') {
       const hex = block.patternColor;
       const opacity = block.patternOpacity;
        const r = parseInt(hex.substring(1,3), 16);
@@ -368,18 +402,18 @@ function flattenContentBlock(
     }
     if (block.width && block.width !== '100%') styles.push(`--sw:${block.width}`);
     if (block.padding && block.padding !== '3rem') styles.push(`--sp:${block.padding}`);
-    if (block.align && block.align !== 'start') styles.push(`--sa:${block.align}`);
+    if (block.align && block.align !== 'left') styles.push(`--sa:${block.align}`);
 
     const styleAttr = styles.length > 0 ? ` style="${styles.join(';')}"` : '';
 
     // Build class string
     const classes: string[] = [];
     if (block.pattern) {
-      if (block.pattern === 'dots') classes.push('bg-pattern-dots');
-      if (block.pattern === 'grid') classes.push('bg-pattern-grid');
-      if (block.pattern === 'stripes') classes.push('bg-pattern-stripes');
-      if (block.pattern === 'cross') classes.push('bg-pattern-cross');
-      if (block.pattern === 'hexagons') classes.push('bg-pattern-hexagons');
+      if (block.pattern === 'dots') classes.push(mangleGeneratedClass('bg-pattern-dots', classManglingEnabled));
+      if (block.pattern === 'grid') classes.push(mangleGeneratedClass('bg-pattern-grid', classManglingEnabled));
+      if (block.pattern === 'stripes') classes.push(mangleGeneratedClass('bg-pattern-stripes', classManglingEnabled));
+      if (block.pattern === 'cross') classes.push(mangleGeneratedClass('bg-pattern-cross', classManglingEnabled));
+      if (block.pattern === 'hexagons') classes.push(mangleGeneratedClass('bg-pattern-hexagons', classManglingEnabled));
     }
 
     return `<section${selectorAttrs(block.selector, classes)}${styleAttr}>${childrenHtml}</section>`;

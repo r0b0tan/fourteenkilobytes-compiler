@@ -43,6 +43,8 @@ export interface CompilerInput {
   allowPagination: boolean;
   /** Build identifier for determinism verification */
   buildId: string;
+  /** Enable deterministic class mangling for compiler-generated classes */
+  classMangling?: boolean;
   /** Posts for bloglist rendering */
   posts?: Post[];
 }
