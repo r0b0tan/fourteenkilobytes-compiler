@@ -8,6 +8,7 @@
 
 import type {
   CompilerInput,
+  ClassManglingMode,
   ContentBlock,
   InlineNode,
   FlattenedPage,
@@ -30,7 +31,7 @@ const HTML_ESCAPE: Record<string, string> = {
   "'": '&#39;',
 };
 
-const GENERATED_CLASS_MAP: Record<string, string> = {
+const SAFE_GENERATED_CLASS_MAP: Record<string, string> = {
   layout: 'l',
   cell: 'c',
   'bg-pattern-dots': 'pd',
@@ -38,6 +39,16 @@ const GENERATED_CLASS_MAP: Record<string, string> = {
   'bg-pattern-stripes': 'ps',
   'bg-pattern-cross': 'pc',
   'bg-pattern-hexagons': 'ph',
+};
+
+const AGGRESSIVE_GENERATED_CLASS_MAP: Record<string, string> = {
+  ...SAFE_GENERATED_CLASS_MAP,
+  pagination: 'p',
+  posts: 's',
+  post: 't',
+  'archive-link': 'al',
+  'end-of-list': 'el',
+  empty: 'e',
 };
 
 const DEFAULTS = {
@@ -62,23 +73,66 @@ const DEFAULTS = {
 } as const;
 
 function isLayoutCellDefaultTextAlign(value?: string | null): boolean {
-  return value === 'left' || value === 'start' || value === null || value === undefined || value === '';
+  return value === 'start' || value === null || value === undefined || value === '';
+}
+
+function normalizeAlignment(value?: string | null): 'start' | 'left' | 'center' | 'right' | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (normalized === 'left' || normalized === 'links') return 'left';
+  if (normalized === 'right' || normalized === 'rechts') return 'right';
+  if (normalized === 'center' || normalized === 'centre' || normalized === 'mittig' || normalized === 'mitte') return 'center';
+  if (normalized === 'start') return 'start';
+
+  return null;
+}
+
+function normalizeCssLength(value?: string | null): string | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) {
+    return `${normalized}px`;
+  }
+
+  return normalized;
 }
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function mangleGeneratedClass(className: string, enabled: boolean): string {
-  if (!enabled) return className;
-  return GENERATED_CLASS_MAP[className] || className;
+function normalizeClassManglingMode(enabled: boolean, mode?: ClassManglingMode): ClassManglingMode {
+  if (!enabled) return 'safe';
+  return mode === 'aggressive' ? 'aggressive' : 'safe';
 }
 
-function mangleCssClassSelectors(css: string, enabled: boolean): string {
-  if (!enabled || !css) return css;
+function getGeneratedClassMap(mode: ClassManglingMode): Record<string, string> {
+  return mode === 'aggressive' ? AGGRESSIVE_GENERATED_CLASS_MAP : SAFE_GENERATED_CLASS_MAP;
+}
+
+function mangleGeneratedClass(className: string, enabled: boolean, mode: ClassManglingMode = 'safe'): string {
+  if (!enabled) return className;
+  const classMap = getGeneratedClassMap(mode);
+  return classMap[className] || className;
+}
+
+function mangleCssClassSelectors(css: string, enabled: boolean, mode: ClassManglingMode = 'safe'): string {
+  if (!css) return css;
 
   let result = css;
-  for (const [fromClass, toClass] of Object.entries(GENERATED_CLASS_MAP)) {
+
+  // Backward compatibility: allow legacy `.section` selectors to target
+  // semantic `<section>` elements without requiring class="section" in output.
+  result = result.replace(/\.section(?![a-zA-Z0-9_-])/g, 'section');
+
+  if (!enabled) return result;
+
+  const classMap = getGeneratedClassMap(mode);
+  for (const [fromClass, toClass] of Object.entries(classMap)) {
     if (fromClass === toClass) continue;
     const selectorRegex = new RegExp(`\\.${escapeRegExp(fromClass)}(?![a-zA-Z0-9_-])`, 'g');
     result = result.replace(selectorRegex, `.${toClass}`);
@@ -177,8 +231,9 @@ export function flatten(input: CompilerInput): FlattenResult {
 
   let cssHtml = '';
   const classManglingEnabled = input.classMangling === true;
+  const classManglingMode = normalizeClassManglingMode(classManglingEnabled, input.classManglingMode);
   const rawCssRules = input.css ? input.css.rules.trim() : '';
-  const cssRules = mangleCssClassSelectors(rawCssRules, classManglingEnabled);
+  const cssRules = mangleCssClassSelectors(rawCssRules, classManglingEnabled, classManglingMode);
   if (cssRules) {
     cssHtml = `<style>${cssRules}</style>`;
     breakdown.css = measureBytes(cssHtml);
@@ -236,11 +291,13 @@ export function flatten(input: CompilerInput): FlattenResult {
       const bloglistBlocks = flattenBloglistToItems(
         input.posts || [],
         block as BloglistBlock,
-        index
+        index,
+        classManglingEnabled,
+        classManglingMode
       );
       contentBlocks.push(...bloglistBlocks);
     } else {
-      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled);
+      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled, classManglingMode);
       contentBlocks.push({
         html,
         bytes: measureBytes(html),
@@ -324,10 +381,11 @@ function flattenContentBlock(
   block: ContentBlock,
   icons: { id: string; placement: string; index: number }[],
   posts?: Post[],
-  classManglingEnabled: boolean = false
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
 ): string {
   if (block.type === 'bloglist') {
-    const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock);
+    const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock, classManglingEnabled, classManglingMode);
     if (!block.selector) return bloglistHtml;
     return `<div${selectorAttrs(block.selector)}>${bloglistHtml}</div>`;
   }
@@ -361,14 +419,18 @@ function flattenContentBlock(
     const cellsHtml = block.cells
       .map((cell) => {
         const cellContent = cell.children
-          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled))
+          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode))
           .join('\n');
         const cellStyles: string[] = [];
-        if (!isLayoutCellDefaultTextAlign(cell.textAlign)) cellStyles.push(`text-align:${cell.textAlign}`);
-        if (cell.padding && cell.padding !== DEFAULTS.layoutCell.padding) cellStyles.push(`padding:${cell.padding}`);
-        if (cell.margin && cell.margin !== DEFAULTS.layoutCell.margin) cellStyles.push(`margin:${cell.margin}`);
+        const textAlign = normalizeAlignment(cell.textAlign);
+        const padding = normalizeCssLength(cell.padding);
+        const margin = normalizeCssLength(cell.margin);
+
+        if (textAlign && !isLayoutCellDefaultTextAlign(textAlign)) cellStyles.push(`text-align:${textAlign}`);
+        if (padding && padding !== DEFAULTS.layoutCell.padding) cellStyles.push(`padding:${padding}`);
+        if (margin && margin !== DEFAULTS.layoutCell.margin) cellStyles.push(`margin:${margin}`);
         const cellStyle = cellStyles.length ? ` style="${cellStyles.join(';')}"` : '';
-        return `<div class="${mangleGeneratedClass('cell', classManglingEnabled)}"${cellStyle}>${cellContent}</div>`;
+        return `<div class="${mangleGeneratedClass('cell', classManglingEnabled, classManglingMode)}"${cellStyle}>${cellContent}</div>`;
       })
       .join('\n');
 
@@ -399,7 +461,7 @@ function flattenContentBlock(
     const styleAttr = ` style="${styles.join(';')}"`;
 
     // Build class string
-    const classes = [mangleGeneratedClass('layout', classManglingEnabled)];
+    const classes = [mangleGeneratedClass('layout', classManglingEnabled, classManglingMode)];
     if (block.className) {
       classes.push(block.className);
     }
@@ -409,8 +471,11 @@ function flattenContentBlock(
 
   if (block.type === 'section') {
     const childrenHtml = block.children
-      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled))
+      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode))
       .join('\n');
+
+    const sectionAlign = normalizeAlignment(block.align);
+    const sectionPadding = normalizeCssLength(block.padding);
 
     // Build style string — all values as CSS custom properties
     // so user CSS can override them without !important
@@ -426,19 +491,19 @@ function flattenContentBlock(
        styles.push(`--pc:rgba(${r},${g},${b},${opacity})`);
     }
     if (block.width && block.width !== DEFAULTS.section.width) styles.push(`--sw:${block.width}`);
-    if (block.padding && block.padding !== DEFAULTS.section.padding) styles.push(`--sp:${block.padding}`);
-    if (block.align && block.align !== DEFAULTS.section.align) styles.push(`--sa:${block.align}`);
+    if (sectionPadding && sectionPadding !== DEFAULTS.section.padding) styles.push(`--sp:${sectionPadding}`);
+    if (sectionAlign && sectionAlign !== DEFAULTS.section.align) styles.push(`--sa:${sectionAlign}`);
 
     const styleAttr = styles.length > 0 ? ` style="${styles.join(';')}"` : '';
 
     // Build class string
     const classes: string[] = [];
     if (block.pattern) {
-      if (block.pattern === 'dots') classes.push(mangleGeneratedClass('bg-pattern-dots', classManglingEnabled));
-      if (block.pattern === 'grid') classes.push(mangleGeneratedClass('bg-pattern-grid', classManglingEnabled));
-      if (block.pattern === 'stripes') classes.push(mangleGeneratedClass('bg-pattern-stripes', classManglingEnabled));
-      if (block.pattern === 'cross') classes.push(mangleGeneratedClass('bg-pattern-cross', classManglingEnabled));
-      if (block.pattern === 'hexagons') classes.push(mangleGeneratedClass('bg-pattern-hexagons', classManglingEnabled));
+      if (block.pattern === 'dots') classes.push(mangleGeneratedClass('bg-pattern-dots', classManglingEnabled, classManglingMode));
+      if (block.pattern === 'grid') classes.push(mangleGeneratedClass('bg-pattern-grid', classManglingEnabled, classManglingMode));
+      if (block.pattern === 'stripes') classes.push(mangleGeneratedClass('bg-pattern-stripes', classManglingEnabled, classManglingMode));
+      if (block.pattern === 'cross') classes.push(mangleGeneratedClass('bg-pattern-cross', classManglingEnabled, classManglingMode));
+      if (block.pattern === 'hexagons') classes.push(mangleGeneratedClass('bg-pattern-hexagons', classManglingEnabled, classManglingMode));
     }
 
     return `<section${selectorAttrs(block.selector, classes)}${styleAttr}>${childrenHtml}</section>`;
@@ -465,11 +530,16 @@ const DEFAULT_BLOGLIST_LIMIT = 20;
  * Render a bloglist from post metadata (legacy, single block).
  * Used when bloglist doesn't need pagination.
  */
-function renderBloglist(posts: Post[], block?: BloglistBlock): string {
+function renderBloglist(
+  posts: Post[],
+  block?: BloglistBlock,
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
+): string {
   const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
 
   if (published.length === 0) {
-    return '<p class="empty">Noch keine Posts.</p>';
+    return `<p class="${mangleGeneratedClass('empty', classManglingEnabled, classManglingMode)}">Noch keine Posts.</p>`;
   }
 
   published.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
@@ -485,14 +555,14 @@ function renderBloglist(posts: Post[], block?: BloglistBlock): string {
       month: 'long',
       day: 'numeric'
     });
-    return `<li class="post"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
+    return `<li class="${mangleGeneratedClass('post', classManglingEnabled, classManglingMode)}"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
   }).join('\n');
 
-  let html = `<ul class="posts">\n${items}\n</ul>`;
+  let html = `<ul class="${mangleGeneratedClass('posts', classManglingEnabled, classManglingMode)}">\n${items}\n</ul>`;
 
   // Add archive link if configured
   if (block?.archiveLink) {
-    html += `\n<p class="archive-link"><a href="${escapeHtml(block.archiveLink.href)}">${escapeHtml(block.archiveLink.text)}</a></p>`;
+    html += `\n<p class="${mangleGeneratedClass('archive-link', classManglingEnabled, classManglingMode)}"><a href="${escapeHtml(block.archiveLink.href)}">${escapeHtml(block.archiveLink.text)}</a></p>`;
   }
 
   return html;
@@ -506,13 +576,15 @@ function renderBloglist(posts: Post[], block?: BloglistBlock): string {
 function flattenBloglistToItems(
   posts: Post[],
   block: BloglistBlock,
-  sourceIndex: number
+  sourceIndex: number,
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
 ): FlattenedContentBlock[] {
   const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
 
   if (published.length === 0) {
     // Return empty message as a single block
-    const html = '<p class="empty">Noch keine Posts.</p>';
+    const html = `<p class="${mangleGeneratedClass('empty', classManglingEnabled, classManglingMode)}">Noch keine Posts.</p>`;
     return [{
       html,
       bytes: measureBytes(html),
@@ -533,7 +605,7 @@ function flattenBloglistToItems(
       month: 'long',
       day: 'numeric'
     });
-    const html = `<li class="post"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
+    const html = `<li class="${mangleGeneratedClass('post', classManglingEnabled, classManglingMode)}"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
     return {
       html,
       bytes: measureBytes(html),
@@ -544,7 +616,7 @@ function flattenBloglistToItems(
 
   // Add archive link as separate block if configured
   if (block?.archiveLink) {
-    const archiveHtml = `<p class="archive-link"><a href="${escapeHtml(block.archiveLink.href)}">${escapeHtml(block.archiveLink.text)}</a></p>`;
+    const archiveHtml = `<p class="${mangleGeneratedClass('archive-link', classManglingEnabled, classManglingMode)}"><a href="${escapeHtml(block.archiveLink.href)}">${escapeHtml(block.archiveLink.text)}</a></p>`;
     blocks.push({
       html: archiveHtml,
       bytes: measureBytes(archiveHtml),
@@ -553,7 +625,7 @@ function flattenBloglistToItems(
     });
   } else if (block?.limit === null) {
     // For full lists (archive page) with no archive link, add "End of list" marker
-    const endHtml = '<p class="end-of-list">— Ende der Liste —</p>';
+    const endHtml = `<p class="${mangleGeneratedClass('end-of-list', classManglingEnabled, classManglingMode)}">— Ende der Liste —</p>`;
     blocks.push({
       html: endHtml,
       bytes: measureBytes(endHtml),

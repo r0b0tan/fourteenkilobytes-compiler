@@ -11,6 +11,7 @@ import type {
   FlattenedContentBlock,
   ModuleBreakdown,
   CompilerError,
+  ClassManglingMode,
 } from './types.js';
 import { SIZE_LIMIT, MAX_PAGINATION_ITERATIONS } from './types.js';
 import { measureBytes, totalFromBreakdown } from './measure.js';
@@ -39,7 +40,9 @@ export type PaginationResult =
 function generatePaginationNav(
   baseSlug: string,
   currentPage: number,
-  totalPages: number
+  totalPages: number,
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
 ): string {
   if (totalPages <= 1) {
     return '';
@@ -57,7 +60,7 @@ function generatePaginationNav(
     }
   }
 
-  return `<div class="pagination">\n${links.join('\n')}\n</div>`;
+  return `<div class="${manglePaginateClass('pagination', classManglingEnabled, classManglingMode)}">\n${links.join('\n')}\n</div>`;
 }
 
 /**
@@ -66,9 +69,11 @@ function generatePaginationNav(
 function calculatePaginationBytes(
   baseSlug: string,
   currentPage: number,
-  totalPages: number
+  totalPages: number,
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
 ): number {
-  const html = generatePaginationNav(baseSlug, currentPage, totalPages);
+  const html = generatePaginationNav(baseSlug, currentPage, totalPages, classManglingEnabled, classManglingMode);
   return measureBytes(html);
 }
 
@@ -88,15 +93,37 @@ function calculateFixedOverhead(breakdown: ModuleBreakdown): number {
   );
 }
 
-/** Bytes for ul wrapper: '<ul class="posts">\n' + '\n</ul>' */
-const BLOGLIST_WRAPPER_OPEN = '<ul class="posts">\n';
 const BLOGLIST_WRAPPER_CLOSE = '\n</ul>';
-const BLOGLIST_WRAPPER_BYTES = measureBytes(BLOGLIST_WRAPPER_OPEN) + measureBytes(BLOGLIST_WRAPPER_CLOSE);
+
+function normalizeClassManglingMode(enabled: boolean, mode?: ClassManglingMode): ClassManglingMode {
+  if (!enabled) return 'safe';
+  return mode === 'aggressive' ? 'aggressive' : 'safe';
+}
+
+function manglePaginateClass(className: string, enabled: boolean, mode: ClassManglingMode): string {
+  if (!enabled) return className;
+  if (mode !== 'aggressive') return className;
+  if (className === 'pagination') return 'p';
+  if (className === 'posts') return 's';
+  return className;
+}
+
+function bloglistWrapperOpen(classManglingEnabled: boolean, classManglingMode: ClassManglingMode): string {
+  return `<ul class="${manglePaginateClass('posts', classManglingEnabled, classManglingMode)}">\n`;
+}
+
+function bloglistWrapperBytes(classManglingEnabled: boolean, classManglingMode: ClassManglingMode): number {
+  return measureBytes(bloglistWrapperOpen(classManglingEnabled, classManglingMode)) + measureBytes(BLOGLIST_WRAPPER_CLOSE);
+}
 
 /**
  * Assemble content HTML from blocks, wrapping consecutive bloglist items in ul.
  */
-function assembleContentHtml(blocks: FlattenedContentBlock[]): string {
+function assembleContentHtml(
+  blocks: FlattenedContentBlock[],
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
+): string {
   if (blocks.length === 0) return '';
 
   const parts: string[] = [];
@@ -113,7 +140,7 @@ function assembleContentHtml(blocks: FlattenedContentBlock[]): string {
     } else {
       // Close any open bloglist
       if (inBloglist) {
-        parts.push(BLOGLIST_WRAPPER_OPEN + bloglistItems.join('\n') + BLOGLIST_WRAPPER_CLOSE);
+        parts.push(bloglistWrapperOpen(classManglingEnabled, classManglingMode) + bloglistItems.join('\n') + BLOGLIST_WRAPPER_CLOSE);
         inBloglist = false;
         bloglistItems = [];
       }
@@ -123,7 +150,7 @@ function assembleContentHtml(blocks: FlattenedContentBlock[]): string {
 
   // Close any remaining bloglist
   if (inBloglist) {
-    parts.push(BLOGLIST_WRAPPER_OPEN + bloglistItems.join('\n') + BLOGLIST_WRAPPER_CLOSE);
+    parts.push(bloglistWrapperOpen(classManglingEnabled, classManglingMode) + bloglistItems.join('\n') + BLOGLIST_WRAPPER_CLOSE);
   }
 
   return parts.join('\n');
@@ -133,7 +160,11 @@ function assembleContentHtml(blocks: FlattenedContentBlock[]): string {
  * Calculate the byte overhead for bloglist wrapping in a set of blocks.
  * Returns the additional bytes needed for <ul> wrappers.
  */
-function calculateBloglistWrapperOverhead(blocks: FlattenedContentBlock[]): number {
+function calculateBloglistWrapperOverhead(
+  blocks: FlattenedContentBlock[],
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
+): number {
   let overhead = 0;
   let inBloglist = false;
 
@@ -141,7 +172,7 @@ function calculateBloglistWrapperOverhead(blocks: FlattenedContentBlock[]): numb
     if (block.blockType === 'bloglist-item') {
       if (!inBloglist) {
         inBloglist = true;
-        overhead += BLOGLIST_WRAPPER_BYTES;
+        overhead += bloglistWrapperBytes(classManglingEnabled, classManglingMode);
       }
     } else {
       inBloglist = false;
@@ -166,8 +197,11 @@ export function paginate(
   page: FlattenedPage,
   contentBlocks: FlattenedContentBlock[],
   baseBreakdown: ModuleBreakdown,
-  allowPagination: boolean
+  allowPagination: boolean,
+  classManglingEnabled: boolean = false,
+  classManglingMode: ClassManglingMode = 'safe'
 ): PaginationResult {
+  const normalizedManglingMode = normalizeClassManglingMode(classManglingEnabled, classManglingMode);
   const fixedOverhead = calculateFixedOverhead(baseBreakdown);
 
   // Calculate total content size
@@ -177,12 +211,12 @@ export function paginate(
   const totalContentWithNewlines = totalContentBytes + contentNewlines;
 
   // Account for bloglist wrapper overhead
-  const bloglistWrapperOverhead = calculateBloglistWrapperOverhead(contentBlocks);
+  const bloglistWrapperOverhead = calculateBloglistWrapperOverhead(contentBlocks, classManglingEnabled, normalizedManglingMode);
 
   // Check if pagination is needed
   if (fixedOverhead + totalContentWithNewlines + bloglistWrapperOverhead <= SIZE_LIMIT) {
     // No pagination needed
-    const contentHtml = assembleContentHtml(contentBlocks);
+    const contentHtml = assembleContentHtml(contentBlocks, classManglingEnabled, normalizedManglingMode);
     return {
       success: true,
       pages: [
@@ -239,7 +273,9 @@ export function paginate(
       const paginationBytes = calculatePaginationBytes(
         baseSlug,
         pageNumber,
-        estimatedPages
+        estimatedPages,
+        classManglingEnabled,
+        normalizedManglingMode
       );
 
       // Available budget for content
@@ -252,7 +288,7 @@ export function paginate(
       // Account for bloglist wrapper overhead
       if (block.blockType === 'bloglist-item' && !currentPageHasBloglist) {
         // Starting a new bloglist on this page adds wrapper overhead
-        candidateBytes += BLOGLIST_WRAPPER_BYTES;
+        candidateBytes += bloglistWrapperBytes(classManglingEnabled, normalizedManglingMode);
       }
 
       if (candidateBytes <= availableBudget) {
@@ -282,11 +318,13 @@ export function paginate(
         }
 
         // Emit current page
-        const contentHtml = assembleContentHtml(currentPageBlocks);
+        const contentHtml = assembleContentHtml(currentPageBlocks, classManglingEnabled, normalizedManglingMode);
         const paginationHtml = generatePaginationNav(
           baseSlug,
           pageNumber,
-          estimatedPages
+          estimatedPages,
+          classManglingEnabled,
+          normalizedManglingMode
         );
 
         pages.push({
@@ -307,7 +345,7 @@ export function paginate(
         // Calculate bytes for new page start
         currentPageBytes = block.bytes;
         if (block.blockType === 'bloglist-item') {
-          currentPageBytes += BLOGLIST_WRAPPER_BYTES;
+          currentPageBytes += bloglistWrapperBytes(classManglingEnabled, normalizedManglingMode);
           currentPageHasBloglist = true;
         } else {
           currentPageHasBloglist = false;
@@ -317,11 +355,13 @@ export function paginate(
 
     // Emit final page
     if (currentPageBlocks.length > 0) {
-      const contentHtml = assembleContentHtml(currentPageBlocks);
+      const contentHtml = assembleContentHtml(currentPageBlocks, classManglingEnabled, normalizedManglingMode);
       const paginationHtml = generatePaginationNav(
         baseSlug,
         pageNumber,
-        estimatedPages
+        estimatedPages,
+        classManglingEnabled,
+        normalizedManglingMode
       );
 
       pages.push({
@@ -355,7 +395,7 @@ export function paginate(
       // Update pagination HTML with actual page count
       for (let i = 0; i < pages.length; i++) {
         const p = pages[i];
-        p.paginationHtml = generatePaginationNav(baseSlug, p.pageNumber, pages.length);
+        p.paginationHtml = generatePaginationNav(baseSlug, p.pageNumber, pages.length, classManglingEnabled, normalizedManglingMode);
         p.breakdown.pagination = measureBytes(p.paginationHtml);
       }
 

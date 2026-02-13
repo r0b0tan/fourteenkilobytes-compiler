@@ -219,6 +219,65 @@ describe('compile', () => {
     }
   });
 
+  it('normalizes unitless layout spacing and emits alignment', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'layout',
+          columns: 1,
+          cells: [
+            {
+              children: [
+                {
+                  type: 'paragraph',
+                  children: [{ type: 'text', text: 'Cell content' }],
+                },
+              ],
+              textAlign: 'right',
+              padding: '5',
+              margin: '2',
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = compile(input);
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('text-align:right'));
+      assert.ok(html.includes('padding:5px'));
+      assert.ok(html.includes('margin:2px'));
+    }
+  });
+
+  it('normalizes localized section align/padding values', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'section',
+          align: 'mittig' as any,
+          padding: '4',
+          children: [
+            {
+              type: 'paragraph',
+              children: [{ type: 'text', text: 'Section content' }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = compile(input);
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('--sa:center'));
+      assert.ok(html.includes('--sp:4px'));
+    }
+  });
+
   it('fails when exceeding size limit without pagination', () => {
     const largeContent = createContentOfSize(SIZE_LIMIT + 1000);
     const input = createMinimalInput({
@@ -535,6 +594,57 @@ describe('style defaults', () => {
       const html = result.pages[0].html;
       assert.ok(html.includes('text-align:left'));
       assert.ok(html.includes('--sa:left'));
+    }
+  });
+
+  it('renders semantic section tags without base section class', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'section',
+          children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Section content' }] }],
+        },
+      ],
+      css: {
+        rules: '.section{padding:0}',
+      },
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('<section><p>Section content</p></section>'));
+      assert.ok(html.includes('section{padding:0}'));
+      assert.ok(!html.includes('.section{padding:0}'));
+    }
+  });
+
+  it('maps .section selector to section and mangles pattern classes in safe mode', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'section',
+          pattern: 'dots',
+          patternColor: '#ffffff',
+          patternOpacity: '0.2',
+          children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Pattern section' }] }],
+        },
+      ],
+      css: {
+        rules: '.section{padding:0}.section.bg-pattern-dots::before{opacity:.5}',
+      },
+      classMangling: true,
+      classManglingMode: 'safe',
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('<section class="pd"'));
+      assert.ok(html.includes('section{padding:0}section.pd::before{opacity:.5}'));
+      assert.ok(!html.includes('.section{padding:0}'));
     }
   });
 });

@@ -108,7 +108,9 @@ export function compile(input: CompilerInput): CompilerResult {
     page,
     contentBlocks,
     breakdown,
-    input.allowPagination
+    input.allowPagination,
+    input.classMangling === true,
+    input.classManglingMode ?? 'safe'
   );
 
   if (!paginationResult.success) {

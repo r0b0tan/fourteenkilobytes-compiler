@@ -12,6 +12,8 @@
 export const SIZE_LIMIT = 14336; // 14 KB in bytes
 export const MAX_PAGINATION_ITERATIONS = 10;
 
+export type ClassManglingMode = 'safe' | 'aggressive';
+
 // =============================================================================
 // INPUT MODEL
 // =============================================================================
@@ -45,6 +47,8 @@ export interface CompilerInput {
   buildId: string;
   /** Enable deterministic class mangling for compiler-generated classes */
   classMangling?: boolean;
+  /** Class mangling mode, safe by default */
+  classManglingMode?: ClassManglingMode;
   /** Posts for bloglist rendering */
   posts?: Post[];
 }
