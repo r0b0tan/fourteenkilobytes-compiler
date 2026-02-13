@@ -305,9 +305,9 @@ function flattenContentBlock(
           .map((child) => flattenContentBlock(child, icons, posts))
           .join('\n');
         const cellStyles: string[] = [];
-        if (cell.textAlign) cellStyles.push(`text-align:${cell.textAlign}`);
-        if (cell.padding) cellStyles.push(`padding:${cell.padding}`);
-        if (cell.margin) cellStyles.push(`margin:${cell.margin}`);
+        if (cell.textAlign && cell.textAlign !== 'left') cellStyles.push(`text-align:${cell.textAlign}`);
+        if (cell.padding && cell.padding !== '10px') cellStyles.push(`padding:${cell.padding}`);
+        if (cell.margin && cell.margin !== '10px') cellStyles.push(`margin:${cell.margin}`);
         const cellStyle = cellStyles.length ? ` style="${cellStyles.join(';')}"` : '';
         return `<div class="cell"${cellStyle}>${cellContent}</div>`;
       })
@@ -318,7 +318,9 @@ function flattenContentBlock(
     styles.push(`display:inline-grid`);
     styles.push(`width:fit-content`);
     styles.push(`max-width:100%`);
-    styles.push(`grid-template-columns:repeat(${block.columns},1fr)`);
+    if (block.columns !== 1) {
+      styles.push(`grid-template-columns:repeat(${block.columns},1fr)`);
+    }
 
     if (block.rows) {
       styles.push(`grid-template-rows:repeat(${block.rows},auto)`);
@@ -327,10 +329,12 @@ function flattenContentBlock(
     // Handle gaps
     const rowGap = block.rowGap || '0';
     const colGap = block.columnGap || '0';
-    if (rowGap === colGap) {
-      styles.push(`gap:${rowGap}`);
-    } else {
-      styles.push(`gap:${rowGap} ${colGap}`);
+    if (!(rowGap === '0' && colGap === '0')) {
+      if (rowGap === colGap) {
+        styles.push(`gap:${rowGap}`);
+      } else {
+        styles.push(`gap:${rowGap} ${colGap}`);
+      }
     }
 
     const styleAttr = ` style="${styles.join(';')}"`;
@@ -352,9 +356,9 @@ function flattenContentBlock(
     // Build style string — all values as CSS custom properties
     // so user CSS can override them without !important
     const styles: string[] = [];
-    if (block.background) styles.push(`--sb:${block.background}`);
-    if (block.color) styles.push(`--sc:${block.color}`);
-    if (block.patternColor && block.patternOpacity) {
+    if (block.background && block.background !== 'transparent') styles.push(`--sb:${block.background}`);
+    if (block.color && block.color !== 'inherit') styles.push(`--sc:${block.color}`);
+    if (block.pattern && block.patternColor && block.patternOpacity && block.patternOpacity !== '0' && block.patternOpacity !== 0) {
       const hex = block.patternColor;
       const opacity = block.patternOpacity;
        const r = parseInt(hex.substring(1,3), 16);
@@ -362,14 +366,14 @@ function flattenContentBlock(
        const b = parseInt(hex.substring(5,7), 16);
        styles.push(`--pc:rgba(${r},${g},${b},${opacity})`);
     }
-    if (block.width) styles.push(`--sw:${block.width}`);
-    if (block.padding) styles.push(`--sp:${block.padding}`);
-    if (block.align) styles.push(`--sa:${block.align}`);
+    if (block.width && block.width !== '100%') styles.push(`--sw:${block.width}`);
+    if (block.padding && block.padding !== '3rem') styles.push(`--sp:${block.padding}`);
+    if (block.align && block.align !== 'start') styles.push(`--sa:${block.align}`);
 
     const styleAttr = styles.length > 0 ? ` style="${styles.join(';')}"` : '';
 
     // Build class string
-    const classes = ['section'];
+    const classes: string[] = [];
     if (block.pattern) {
       if (block.pattern === 'dots') classes.push('bg-pattern-dots');
       if (block.pattern === 'grid') classes.push('bg-pattern-grid');
@@ -378,7 +382,7 @@ function flattenContentBlock(
       if (block.pattern === 'hexagons') classes.push('bg-pattern-hexagons');
     }
 
-    return `<div${selectorAttrs(block.selector, classes)}${styleAttr}>${childrenHtml}</div>`;
+    return `<section${selectorAttrs(block.selector, classes)}${styleAttr}>${childrenHtml}</section>`;
   }
 
   const inlineHtml = flattenInlineNodes(block.children, icons, 'content');
