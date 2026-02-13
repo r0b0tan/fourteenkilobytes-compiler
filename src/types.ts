@@ -127,13 +127,13 @@ export interface SectionBlock {
   patternOpacity?: string;
   width?: string;
   padding?: string;
-  align?: 'left' | 'center' | 'right';
+  align?: 'start' | 'left' | 'center' | 'right';
   children: ContentBlock[];
 }
 
 export interface LayoutCell {
   children: ContentBlock[];
-  textAlign?: 'left' | 'center' | 'right' | null;
+  textAlign?: 'start' | 'left' | 'center' | 'right' | null;
   padding?: string | null;
   margin?: string | null;
 }

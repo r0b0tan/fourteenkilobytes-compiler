@@ -483,6 +483,62 @@ describe('headings', () => {
   });
 });
 
+describe('style defaults', () => {
+  it('does not serialize text-align:start for layout cells', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'layout',
+          columns: 1,
+          cells: [
+            {
+              textAlign: 'start',
+              children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Cell content' }] }],
+            },
+          ],
+        },
+      ],
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(!html.includes('text-align:start'));
+    }
+  });
+
+  it('serializes non-default align values explicitly', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'layout',
+          columns: 1,
+          cells: [
+            {
+              textAlign: 'left',
+              children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Left aligned' }] }],
+            },
+          ],
+        },
+        {
+          type: 'section',
+          align: 'left',
+          children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Section content' }] }],
+        },
+      ],
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('text-align:left'));
+      assert.ok(html.includes('--sa:left'));
+    }
+  });
+});
+
 describe('bloglist', () => {
   /**
    * Create mock posts for testing.

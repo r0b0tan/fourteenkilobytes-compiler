@@ -40,6 +40,31 @@ const GENERATED_CLASS_MAP: Record<string, string> = {
   'bg-pattern-hexagons': 'ph',
 };
 
+const DEFAULTS = {
+  layoutCell: {
+    textAlign: 'start',
+    padding: '10px',
+    margin: '10px',
+  },
+  layout: {
+    columns: 1,
+    rowGap: '0',
+    columnGap: '0',
+  },
+  section: {
+    background: 'transparent',
+    color: 'inherit',
+    patternOpacity: '0',
+    width: '100%',
+    padding: '3rem',
+    align: 'start',
+  },
+} as const;
+
+function isLayoutCellDefaultTextAlign(value?: string | null): boolean {
+  return value === 'left' || value === 'start' || value === null || value === undefined || value === '';
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -339,9 +364,9 @@ function flattenContentBlock(
           .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled))
           .join('\n');
         const cellStyles: string[] = [];
-        if (cell.textAlign && cell.textAlign !== 'left') cellStyles.push(`text-align:${cell.textAlign}`);
-        if (cell.padding && cell.padding !== '10px') cellStyles.push(`padding:${cell.padding}`);
-        if (cell.margin && cell.margin !== '10px') cellStyles.push(`margin:${cell.margin}`);
+        if (!isLayoutCellDefaultTextAlign(cell.textAlign)) cellStyles.push(`text-align:${cell.textAlign}`);
+        if (cell.padding && cell.padding !== DEFAULTS.layoutCell.padding) cellStyles.push(`padding:${cell.padding}`);
+        if (cell.margin && cell.margin !== DEFAULTS.layoutCell.margin) cellStyles.push(`margin:${cell.margin}`);
         const cellStyle = cellStyles.length ? ` style="${cellStyles.join(';')}"` : '';
         return `<div class="${mangleGeneratedClass('cell', classManglingEnabled)}"${cellStyle}>${cellContent}</div>`;
       })
@@ -352,7 +377,7 @@ function flattenContentBlock(
     styles.push(`display:inline-grid`);
     styles.push(`width:fit-content`);
     styles.push(`max-width:100%`);
-    if (block.columns !== 1) {
+    if (block.columns !== DEFAULTS.layout.columns) {
       styles.push(`grid-template-columns:repeat(${block.columns},1fr)`);
     }
 
@@ -361,9 +386,9 @@ function flattenContentBlock(
     }
 
     // Handle gaps
-    const rowGap = block.rowGap || '0';
-    const colGap = block.columnGap || '0';
-    if (!(rowGap === '0' && colGap === '0')) {
+    const rowGap = block.rowGap || DEFAULTS.layout.rowGap;
+    const colGap = block.columnGap || DEFAULTS.layout.columnGap;
+    if (!(rowGap === DEFAULTS.layout.rowGap && colGap === DEFAULTS.layout.columnGap)) {
       if (rowGap === colGap) {
         styles.push(`gap:${rowGap}`);
       } else {
@@ -390,9 +415,9 @@ function flattenContentBlock(
     // Build style string — all values as CSS custom properties
     // so user CSS can override them without !important
     const styles: string[] = [];
-    if (block.background && block.background !== 'transparent') styles.push(`--sb:${block.background}`);
-    if (block.color && block.color !== 'inherit') styles.push(`--sc:${block.color}`);
-    if (block.pattern && block.patternColor && block.patternOpacity && block.patternOpacity !== '0') {
+    if (block.background && block.background !== DEFAULTS.section.background) styles.push(`--sb:${block.background}`);
+    if (block.color && block.color !== DEFAULTS.section.color) styles.push(`--sc:${block.color}`);
+    if (block.pattern && block.patternColor && block.patternOpacity && block.patternOpacity !== DEFAULTS.section.patternOpacity) {
       const hex = block.patternColor;
       const opacity = block.patternOpacity;
        const r = parseInt(hex.substring(1,3), 16);
@@ -400,9 +425,9 @@ function flattenContentBlock(
        const b = parseInt(hex.substring(5,7), 16);
        styles.push(`--pc:rgba(${r},${g},${b},${opacity})`);
     }
-    if (block.width && block.width !== '100%') styles.push(`--sw:${block.width}`);
-    if (block.padding && block.padding !== '3rem') styles.push(`--sp:${block.padding}`);
-    if (block.align && block.align !== 'left') styles.push(`--sa:${block.align}`);
+    if (block.width && block.width !== DEFAULTS.section.width) styles.push(`--sw:${block.width}`);
+    if (block.padding && block.padding !== DEFAULTS.section.padding) styles.push(`--sp:${block.padding}`);
+    if (block.align && block.align !== DEFAULTS.section.align) styles.push(`--sa:${block.align}`);
 
     const styleAttr = styles.length > 0 ? ` style="${styles.join(';')}"` : '';
 
