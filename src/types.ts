@@ -49,11 +49,13 @@ export interface CompilerInput {
 
 export interface ParagraphBlock {
   type: 'paragraph';
+  selector?: string;
   children: InlineNode[];
 }
 
 export interface HeadingBlock {
   type: 'heading';
+  selector?: string;
   level?: 1 | 2 | 3 | 4 | 5 | 6;
   children: InlineNode[];
 }
@@ -67,6 +69,7 @@ export interface BloglistArchiveLink {
 
 export interface BloglistBlock {
   type: 'bloglist';
+  selector?: string;
   /** Maximum number of posts to display. Default: 20. Use null/undefined for no limit. */
   limit?: number | null;
   /** Optional link to archive page, shown below the list */
@@ -79,30 +82,42 @@ export interface ListItem {
 
 export interface UnorderedListBlock {
   type: 'unordered-list';
+  selector?: string;
   items: ListItem[];
 }
 
 export interface OrderedListBlock {
   type: 'ordered-list';
+  selector?: string;
   items: ListItem[];
 }
 
 export interface BlockquoteBlock {
   type: 'blockquote';
+  selector?: string;
   children: InlineNode[];
 }
 
 export interface CodeBlockBlock {
   type: 'codeblock';
+  selector?: string;
   content: string;
 }
 
 export interface DividerBlock {
   type: 'divider';
+  selector?: string;
+}
+
+export interface SpacerBlock {
+  type: 'spacer';
+  selector?: string;
+  height?: string;
 }
 
 export interface SectionBlock {
   type: 'section';
+  selector?: string;
   background?: string;
   color?: string;
   pattern?: string;
@@ -117,10 +132,13 @@ export interface SectionBlock {
 export interface LayoutCell {
   children: ContentBlock[];
   textAlign?: 'left' | 'center' | 'right' | null;
+  padding?: string | null;
+  margin?: string | null;
 }
 
 export interface LayoutBlock {
   type: 'layout';
+  selector?: string;
   columns: number;
   rows?: number | null;
   columnGap?: string;
@@ -129,7 +147,7 @@ export interface LayoutBlock {
   cells: LayoutCell[];
 }
 
-export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SectionBlock | LayoutBlock;
+export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SpacerBlock | SectionBlock | LayoutBlock;
 
 export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | UnderlineNode | StrikethroughNode | CodeNode | LinkNode;
 

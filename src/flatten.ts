@@ -37,6 +37,42 @@ function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, (char) => HTML_ESCAPE[char]);
 }
 
+function parseSelector(selector?: string | null): { id: string; classes: string[] } {
+  if (!selector || typeof selector !== 'string') {
+    return { id: '', classes: [] };
+  }
+
+  const safeToken = (token: string): string => {
+    if (!token) return '';
+    return token.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  };
+
+  const normalized = selector.trim();
+  if (!normalized) return { id: '', classes: [] };
+
+  if (normalized.startsWith('#')) {
+    const [idToken, ...classTokens] = normalized.slice(1).split('.');
+    const id = safeToken(idToken);
+    const classes = classTokens.map(safeToken).filter(Boolean);
+    return { id, classes };
+  }
+
+  const source = normalized.startsWith('.') ? normalized.slice(1) : normalized;
+  const classes = source
+    .split(/[.\s]+/)
+    .map(safeToken)
+    .filter(Boolean);
+  return { id: '', classes };
+}
+
+function selectorAttrs(selector?: string | null, baseClasses: string[] = []): string {
+  const parsed = parseSelector(selector);
+  const classes = [...baseClasses, ...parsed.classes].filter(Boolean);
+  const idAttr = parsed.id ? ` id="${escapeHtml(parsed.id)}"` : '';
+  const classAttr = classes.length > 0 ? ` class="${escapeHtml(classes.join(' '))}"` : '';
+  return `${idAttr}${classAttr}`;
+}
+
 /**
  * Result of flattening: the page and its measurement breakdown.
  */
@@ -232,15 +268,22 @@ function flattenContentBlock(
   posts?: Post[]
 ): string {
   if (block.type === 'bloglist') {
-    return renderBloglist(posts || [], block as BloglistBlock);
+    const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock);
+    if (!block.selector) return bloglistHtml;
+    return `<div${selectorAttrs(block.selector)}>${bloglistHtml}</div>`;
   }
 
   if (block.type === 'divider') {
-    return '<hr>';
+    return `<hr${selectorAttrs(block.selector)}>`;
+  }
+
+  if (block.type === 'spacer') {
+    const height = block.height && block.height.trim() ? block.height.trim() : '1rem';
+    return `<div${selectorAttrs(block.selector)} style="height:${height}"></div>`;
   }
 
   if (block.type === 'codeblock') {
-    return `<pre><code>${escapeHtml(block.content)}</code></pre>`;
+    return `<pre${selectorAttrs(block.selector)}><code>${escapeHtml(block.content)}</code></pre>`;
   }
 
   if (block.type === 'unordered-list' || block.type === 'ordered-list') {
@@ -251,7 +294,7 @@ function flattenContentBlock(
         return `<li>${inlineHtml}</li>`;
       })
       .join('\n');
-    return `<${tag}>\n${items}\n</${tag}>`;
+    return `<${tag}${selectorAttrs(block.selector)}>\n${items}\n</${tag}>`;
   }
 
   if (block.type === 'layout') {
@@ -261,14 +304,20 @@ function flattenContentBlock(
         const cellContent = cell.children
           .map((child) => flattenContentBlock(child, icons, posts))
           .join('\n');
-        const cellStyle = cell.textAlign ? ` style="text-align:${cell.textAlign}"` : '';
+        const cellStyles: string[] = [];
+        if (cell.textAlign) cellStyles.push(`text-align:${cell.textAlign}`);
+        if (cell.padding) cellStyles.push(`padding:${cell.padding}`);
+        if (cell.margin) cellStyles.push(`margin:${cell.margin}`);
+        const cellStyle = cellStyles.length ? ` style="${cellStyles.join(';')}"` : '';
         return `<div class="cell"${cellStyle}>${cellContent}</div>`;
       })
       .join('\n');
 
     // Build style string for grid
     const styles: string[] = [];
-    styles.push(`display:grid`);
+    styles.push(`display:inline-grid`);
+    styles.push(`width:fit-content`);
+    styles.push(`max-width:100%`);
     styles.push(`grid-template-columns:repeat(${block.columns},1fr)`);
 
     if (block.rows) {
@@ -292,7 +341,7 @@ function flattenContentBlock(
       classes.push(block.className);
     }
 
-    return `<div class="${classes.join(' ')}"${styleAttr}>${cellsHtml}</div>`;
+    return `<div${selectorAttrs(block.selector, classes)}${styleAttr}>${cellsHtml}</div>`;
   }
 
   if (block.type === 'section') {
@@ -329,21 +378,21 @@ function flattenContentBlock(
       if (block.pattern === 'hexagons') classes.push('bg-pattern-hexagons');
     }
 
-    return `<div class="${classes.join(' ')}"${styleAttr}>${childrenHtml}</div>`;
+    return `<div${selectorAttrs(block.selector, classes)}${styleAttr}>${childrenHtml}</div>`;
   }
 
   const inlineHtml = flattenInlineNodes(block.children, icons, 'content');
 
   if (block.type === 'heading') {
     const level = block.level ?? 1;
-    return `<h${level}>${inlineHtml}</h${level}>`;
+    return `<h${level}${selectorAttrs(block.selector)}>${inlineHtml}</h${level}>`;
   }
 
   if (block.type === 'blockquote') {
-    return `<blockquote>${inlineHtml}</blockquote>`;
+    return `<blockquote${selectorAttrs(block.selector)}>${inlineHtml}</blockquote>`;
   }
 
-  return `<p>${inlineHtml}</p>`;
+  return `<p${selectorAttrs(block.selector)}>${inlineHtml}</p>`;
 }
 
 /** Default limit for bloglist if not specified */

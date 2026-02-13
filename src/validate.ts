@@ -161,10 +161,11 @@ export function validateContent(blocks: ContentBlock[]): ValidationResult {
  */
 function validateContentBlock(
   block: ContentBlock,
-  path: string
+  path: string,
+  disallowNesting: boolean = false
 ): ValidationResult {
   const blockType = block.type;
-  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'section'];
+  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'spacer', 'section', 'layout'];
 
   if (!allowedBlockTypes.includes(blockType)) {
     return {
@@ -173,6 +174,31 @@ function validateContentBlock(
         code: 'CONTENT_INVALID_ELEMENT',
         element: blockType,
         allowed: allowedBlockTypes,
+        path,
+      },
+    };
+  }
+
+  if ((block as { selector?: unknown }).selector !== undefined && typeof (block as { selector?: unknown }).selector !== 'string') {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_INVALID_ELEMENT',
+        element: `${blockType} with non-string selector`,
+        allowed: [`${blockType} with string selector or no selector`],
+        path,
+      },
+    };
+  }
+
+  // Disallow section and layout in nested contexts (e.g., inside layout cells)
+  if (disallowNesting && (blockType === 'section' || blockType === 'layout')) {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_INVALID_ELEMENT',
+        element: blockType,
+        allowed: ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'spacer'],
         path,
       },
     };
@@ -252,10 +278,91 @@ function validateContentBlock(
     return { valid: true };
   }
 
+  if (blockType === 'spacer') {
+    if ((block as { height?: unknown }).height !== undefined && typeof (block as { height?: unknown }).height !== 'string') {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'spacer with non-string height',
+          allowed: ['spacer with string height or no height'],
+          path,
+        },
+      };
+    }
+    return { valid: true };
+  }
+
   // Validate bloglist block options
   if (blockType === 'bloglist') {
     const bloglistResult = validateBloglistBlock(block as BloglistBlock, path);
     if (!bloglistResult.valid) return bloglistResult;
+    return { valid: true };
+  }
+
+  // Validate layout blocks
+  if (blockType === 'layout') {
+    // Validate columns
+    if (typeof block.columns !== 'number' || block.columns < 1 || block.columns > 12) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `layout with columns ${block.columns}`,
+          allowed: ['layout with columns 1-12'],
+          path,
+        },
+      };
+    }
+
+    // Validate rows if present
+    if (block.rows !== null && block.rows !== undefined) {
+      if (typeof block.rows !== 'number' || block.rows < 1) {
+        return {
+          valid: false,
+          error: {
+            code: 'CONTENT_INVALID_ELEMENT',
+            element: `layout with rows ${block.rows}`,
+            allowed: ['layout with rows >= 1 or null for auto'],
+            path,
+          },
+        };
+      }
+    }
+
+    // Validate cells
+    if (!block.cells || !Array.isArray(block.cells)) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'layout without cells array',
+          allowed: ['layout with cells array'],
+          path,
+        },
+      };
+    }
+
+    // Validate each cell's children (no section/layout allowed)
+    for (let i = 0; i < block.cells.length; i++) {
+      const cell = block.cells[i];
+      if (!cell.children || !Array.isArray(cell.children)) {
+        return {
+          valid: false,
+          error: {
+            code: 'CONTENT_INVALID_ELEMENT',
+            element: 'layout cell without children array',
+            allowed: ['layout cell with children array'],
+            path: `${path}.cells[${i}]`,
+          },
+        };
+      }
+      for (let j = 0; j < cell.children.length; j++) {
+        const result = validateContentBlock(cell.children[j], `${path}.cells[${i}].children[${j}]`, true);
+        if (!result.valid) return result;
+      }
+    }
+
     return { valid: true };
   }
 
