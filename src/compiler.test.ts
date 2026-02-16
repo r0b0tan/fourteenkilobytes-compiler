@@ -597,6 +597,85 @@ describe('style defaults', () => {
     }
   });
 
+  it('serializes width values for layout cells', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'layout',
+          columns: 1,
+          cells: [
+            {
+              width: '420px',
+              children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Cell with width' }] }],
+            },
+          ],
+        },
+      ],
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('width:420px'));
+      assert.ok(html.includes('justify-self:start'));
+    }
+  });
+
+  it('uses explicit cell widths for multi-column layout tracks', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'layout',
+          columns: 2,
+          cells: [
+            {
+              width: '200px',
+              children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Cell 1' }] }],
+            },
+            {
+              width: '420px',
+              children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Cell 2' }] }],
+            },
+          ],
+        },
+      ],
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('grid-template-columns:200px 420px'));
+      assert.ok(html.includes('style="width:200px;justify-self:start"'));
+      assert.ok(html.includes('style="width:420px;justify-self:start"'));
+    }
+  });
+
+  it('serializes custom class names for layout cells', () => {
+    const input = createMinimalInput({
+      content: [
+        {
+          type: 'layout',
+          columns: 1,
+          cells: [
+            {
+              className: 'frame-accent card-outline',
+              children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Cell with class' }] }],
+            },
+          ],
+        },
+      ],
+    });
+    const result = compile(input);
+
+    assert.equal(result.success, true);
+    if (result.success) {
+      const html = result.pages[0].html;
+      assert.ok(html.includes('class="cell frame-accent card-outline"'));
+    }
+  });
+
   it('renders semantic section tags without base section class', () => {
     const input = createMinimalInput({
       content: [

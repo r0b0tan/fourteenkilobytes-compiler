@@ -82,6 +82,15 @@ export interface BloglistBlock {
   archiveLink?: BloglistArchiveLink;
 }
 
+export interface AuthorBlock {
+  type: 'author';
+  selector?: string;
+  showPublished?: boolean;
+  showModified?: boolean;
+  showAuthor?: boolean;
+  tags?: string[];
+}
+
 export interface ListItem {
   children: InlineNode[];
 }
@@ -138,6 +147,8 @@ export interface SectionBlock {
 export interface LayoutCell {
   children: ContentBlock[];
   textAlign?: 'start' | 'left' | 'center' | 'right' | null;
+  className?: string | null;
+  width?: string | null;
   padding?: string | null;
   margin?: string | null;
 }
@@ -153,7 +164,7 @@ export interface LayoutBlock {
   cells: LayoutCell[];
 }
 
-export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SpacerBlock | SectionBlock | LayoutBlock;
+export type ContentBlock = ParagraphBlock | HeadingBlock | BloglistBlock | AuthorBlock | UnorderedListBlock | OrderedListBlock | BlockquoteBlock | CodeBlockBlock | DividerBlock | SpacerBlock | SectionBlock | LayoutBlock;
 
 export type InlineNode = TextNode | LinebreakNode | BoldNode | ItalicNode | UnderlineNode | StrikethroughNode | CodeNode | LinkNode;
 
@@ -236,6 +247,8 @@ export interface Post {
   slug: string;
   title: string;
   publishedAt: string;
+  modifiedAt?: string | null;
+  author?: string | null;
   status: string;
   pageType: string;
 }

@@ -16,6 +16,7 @@ import type {
   ModuleBreakdown,
   Post,
   BloglistBlock,
+  AuthorBlock,
 } from './types.js';
 import { measureBytes, normalizeLineEndings, sanitizeHtml } from './measure.js';
 import { getIconSvg, getIconBytes } from './icons.js';
@@ -99,6 +100,17 @@ function normalizeCssLength(value?: string | null): string | null {
   }
 
   return normalized;
+}
+
+function normalizeClassNames(value?: string | null): string[] {
+  if (value === null || value === undefined) return [];
+  const normalized = String(value).trim();
+  if (!normalized) return [];
+
+  return normalized
+    .split(/\s+/)
+    .map((token) => token.replace(/[^a-zA-Z0-9_-]/g, ''))
+    .filter(Boolean);
 }
 
 function escapeRegExp(value: string): string {
@@ -297,7 +309,7 @@ export function flatten(input: CompilerInput): FlattenResult {
       );
       contentBlocks.push(...bloglistBlocks);
     } else {
-      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled, classManglingMode);
+      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled, classManglingMode, input.slug, input.meta?.author || null);
       contentBlocks.push({
         html,
         bytes: measureBytes(html),
@@ -382,12 +394,18 @@ function flattenContentBlock(
   icons: { id: string; placement: string; index: number }[],
   posts?: Post[],
   classManglingEnabled: boolean = false,
-  classManglingMode: ClassManglingMode = 'safe'
+  classManglingMode: ClassManglingMode = 'safe',
+  slug?: string,
+  fallbackAuthor?: string | null
 ): string {
   if (block.type === 'bloglist') {
     const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock, classManglingEnabled, classManglingMode);
     if (!block.selector) return bloglistHtml;
     return `<div${selectorAttrs(block.selector)}>${bloglistHtml}</div>`;
+  }
+
+  if (block.type === 'author') {
+    return renderAuthorBlock(posts || [], slug || '', block as AuthorBlock, fallbackAuthor || null);
   }
 
   if (block.type === 'divider') {
@@ -415,22 +433,31 @@ function flattenContentBlock(
   }
 
   if (block.type === 'layout') {
+    const normalizedCellWidths = block.cells.map(cell => normalizeCssLength(cell.width));
+    const hasExplicitCellWidths = normalizedCellWidths.some((value) => !!value);
+
     // Build grid cells HTML
     const cellsHtml = block.cells
-      .map((cell) => {
+      .map((cell, index) => {
         const cellContent = cell.children
-          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode))
+          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode, slug, fallbackAuthor))
           .join('\n');
         const cellStyles: string[] = [];
         const textAlign = normalizeAlignment(cell.textAlign);
+        const width = normalizedCellWidths[index];
         const padding = normalizeCssLength(cell.padding);
         const margin = normalizeCssLength(cell.margin);
 
         if (textAlign && !isLayoutCellDefaultTextAlign(textAlign)) cellStyles.push(`text-align:${textAlign}`);
+        if (width) {
+          cellStyles.push(`width:${width}`);
+          cellStyles.push(`justify-self:start`);
+        }
         if (padding && padding !== DEFAULTS.layoutCell.padding) cellStyles.push(`padding:${padding}`);
         if (margin && margin !== DEFAULTS.layoutCell.margin) cellStyles.push(`margin:${margin}`);
         const cellStyle = cellStyles.length ? ` style="${cellStyles.join(';')}"` : '';
-        return `<div class="${mangleGeneratedClass('cell', classManglingEnabled, classManglingMode)}"${cellStyle}>${cellContent}</div>`;
+        const cellClasses = [mangleGeneratedClass('cell', classManglingEnabled, classManglingMode), ...normalizeClassNames(cell.className)];
+        return `<div class="${cellClasses.join(' ')}"${cellStyle}>${cellContent}</div>`;
       })
       .join('\n');
 
@@ -439,7 +466,13 @@ function flattenContentBlock(
     styles.push(`display:inline-grid`);
     styles.push(`width:fit-content`);
     styles.push(`max-width:100%`);
-    if (block.columns !== DEFAULTS.layout.columns) {
+    if (hasExplicitCellWidths) {
+      const columnsTemplate: string[] = [];
+      for (let col = 0; col < block.columns; col++) {
+        columnsTemplate.push(normalizedCellWidths[col] || '1fr');
+      }
+      styles.push(`grid-template-columns:${columnsTemplate.join(' ')}`);
+    } else if (block.columns !== DEFAULTS.layout.columns) {
       styles.push(`grid-template-columns:repeat(${block.columns},1fr)`);
     }
 
@@ -471,7 +504,7 @@ function flattenContentBlock(
 
   if (block.type === 'section') {
     const childrenHtml = block.children
-      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode))
+      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode, slug, fallbackAuthor))
       .join('\n');
 
     const sectionAlign = normalizeAlignment(block.align);
@@ -525,6 +558,64 @@ function flattenContentBlock(
 
 /** Default limit for bloglist if not specified */
 const DEFAULT_BLOGLIST_LIMIT = 20;
+
+function formatDisplayDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleDateString('de-DE', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+function parseDateMs(iso?: string | null): number | null {
+  if (!iso) return null;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getTime();
+}
+
+function renderAuthorBlock(posts: Post[], slug: string, block: AuthorBlock, fallbackAuthor?: string | null): string {
+  const current = posts.find(post => post.slug === slug) || null;
+  const showPublished = block.showPublished !== false;
+  const showModified = block.showModified !== false;
+  const showAuthor = block.showAuthor !== false;
+  const publishedAt = current?.publishedAt || '';
+  const modifiedAt = current?.modifiedAt || '';
+  const publishedMs = parseDateMs(publishedAt);
+  const modifiedMs = parseDateMs(modifiedAt);
+
+  const author = String(current?.author || fallbackAuthor || '').trim();
+  const parts: string[] = [];
+
+  if (showPublished && publishedAt) {
+    parts.push(`Veröffentlicht: <time datetime="${escapeHtml(publishedAt)}">${escapeHtml(formatDisplayDate(publishedAt))}</time>`);
+  }
+
+  if (showModified && modifiedAt && (publishedMs === null || (modifiedMs !== null && modifiedMs > publishedMs))) {
+    parts.push(`Aktualisiert: <time datetime="${escapeHtml(modifiedAt)}">${escapeHtml(formatDisplayDate(modifiedAt))}</time>`);
+  }
+
+  if (showAuthor && author) {
+    parts.push(`Von ${escapeHtml(author)}`);
+  }
+
+  const tags = Array.isArray(block.tags)
+    ? block.tags
+      .map(tag => String(tag).trim())
+      .filter(Boolean)
+      .filter((tag, index, arr) => arr.indexOf(tag) === index)
+      .slice(0, 8)
+      .map(tag => tag.slice(0, 32))
+    : [];
+
+  if (tags.length > 0) {
+    parts.push(`Tags: ${tags.map(tag => escapeHtml(tag)).join(', ')}`);
+  }
+
+  return `<p${selectorAttrs(block.selector)}>${parts.join(' · ')}</p>`;
+}
 
 /**
  * Render a bloglist from post metadata (legacy, single block).

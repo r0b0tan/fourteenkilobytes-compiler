@@ -17,6 +17,7 @@ import type {
   MetaModule,
   IconReference,
   BloglistBlock,
+  AuthorBlock,
 } from './types.js';
 import { isValidIconId, getAvailableIconIds } from './icons.js';
 
@@ -165,7 +166,7 @@ function validateContentBlock(
   disallowNesting: boolean = false
 ): ValidationResult {
   const blockType = block.type;
-  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'spacer', 'section', 'layout'];
+  const allowedBlockTypes = ['heading', 'paragraph', 'bloglist', 'author', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'spacer', 'section', 'layout'];
 
   if (!allowedBlockTypes.includes(blockType)) {
     return {
@@ -198,7 +199,7 @@ function validateContentBlock(
       error: {
         code: 'CONTENT_INVALID_ELEMENT',
         element: blockType,
-        allowed: ['heading', 'paragraph', 'bloglist', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'spacer'],
+        allowed: ['heading', 'paragraph', 'bloglist', 'author', 'unordered-list', 'ordered-list', 'blockquote', 'codeblock', 'divider', 'spacer'],
         path,
       },
     };
@@ -297,6 +298,12 @@ function validateContentBlock(
   if (blockType === 'bloglist') {
     const bloglistResult = validateBloglistBlock(block as BloglistBlock, path);
     if (!bloglistResult.valid) return bloglistResult;
+    return { valid: true };
+  }
+
+  if (blockType === 'author') {
+    const authorResult = validateAuthorBlock(block as AuthorBlock, path);
+    if (!authorResult.valid) return authorResult;
     return { valid: true };
   }
 
@@ -634,6 +641,82 @@ export function validateBloglistBlock(block: BloglistBlock, path: string): Valid
           path: `${path}.archiveLink.text`,
         },
       };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate author block options.
+ */
+export function validateAuthorBlock(block: AuthorBlock, path: string): ValidationResult {
+  const boolFields: Array<keyof AuthorBlock> = ['showPublished', 'showModified', 'showAuthor'];
+  for (const field of boolFields) {
+    const value = block[field];
+    if (value !== undefined && typeof value !== 'boolean') {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `author with non-boolean ${String(field)}`,
+          allowed: [`author with boolean ${String(field)} or no ${String(field)}`],
+          path,
+        },
+      };
+    }
+  }
+
+  if (block.tags !== undefined) {
+    if (!Array.isArray(block.tags)) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: 'author with non-array tags',
+          allowed: ['author with tags string array'],
+          path,
+        },
+      };
+    }
+
+    if (block.tags.length > 8) {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `author with ${block.tags.length} tags`,
+          allowed: ['author with up to 8 tags'],
+          path,
+        },
+      };
+    }
+
+    for (let index = 0; index < block.tags.length; index++) {
+      const tag = block.tags[index];
+      if (typeof tag !== 'string') {
+        return {
+          valid: false,
+          error: {
+            code: 'CONTENT_INVALID_ELEMENT',
+            element: 'author with non-string tag',
+            allowed: ['author tags with string values'],
+            path: `${path}.tags[${index}]`,
+          },
+        };
+      }
+
+      if (tag.length > 32) {
+        return {
+          valid: false,
+          error: {
+            code: 'CONTENT_INVALID_ELEMENT',
+            element: `author tag with ${tag.length} characters`,
+            allowed: ['author tags with max 32 characters'],
+            path: `${path}.tags[${index}]`,
+          },
+        };
+      }
     }
   }
 
