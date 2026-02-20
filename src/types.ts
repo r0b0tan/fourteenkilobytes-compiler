@@ -205,6 +205,7 @@ export interface CodeNode {
 export interface LinkNode {
   type: 'link';
   href: string;
+  target?: '_blank';
   children: InlineNode[];
 }
 

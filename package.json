@@ -17,12 +17,15 @@
     "build:browser": "node build-browser.mjs",
     "build:all": "tsc && node build-node.mjs && node build-browser.mjs",
     "test": "node --test dist/compiler.test.js",
+    "test:vitest": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "esbuild": "^0.20.0",
-    "typescript": "^5.3.0"
+    "fast-check": "^4.5.3",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.18"
   },
   "files": [
     "dist"

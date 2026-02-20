@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Determinism guarantees > matches golden master snapshot for final HTML output only 1`] = `
+"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Golden Master</title>
+<style>body{margin:0}.layout{display:grid}</style>
+</head>
+<body>
+<header><nav>
+<a href="/index.html">Home</a>
+</nav></header>
+<main>
+<h1>Hello Snapshot</h1>
+<p>Snapshot body.</p>
+</main>
+<footer>Footer text</footer>
+</body>
+</html>"
+`;

@@ -779,7 +779,8 @@ function flattenInlineNode(
         (i) => i.placement === placement && i.index === index
       );
       const iconHtml = icon ? getIconSvg(icon.id) : '';
-      return `<a href="${escapeHtml(node.href)}">${childHtml}${iconHtml}</a>`;
+      const targetAttrs = node.target === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '';
+      return `<a href="${escapeHtml(node.href)}"${targetAttrs}>${childHtml}${iconHtml}</a>`;
     }
   }
 }

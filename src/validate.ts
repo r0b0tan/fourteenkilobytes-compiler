@@ -421,6 +421,19 @@ function validateInlineNode(node: InlineNode, path: string): ValidationResult {
     // Validate href
     const hrefResult = validateHref(node.href, path);
     if (!hrefResult.valid) return hrefResult;
+
+    // Validate optional target
+    if (typeof node.target !== 'undefined' && node.target !== '_blank') {
+      return {
+        valid: false,
+        error: {
+          code: 'CONTENT_INVALID_ELEMENT',
+          element: `invalid link target: ${String(node.target)}`,
+          allowed: ['undefined', '_blank'],
+          path: `${path}.target`,
+        },
+      };
+    }
   }
 
   // Validate children for bold, italic, underline, strikethrough, code, link
