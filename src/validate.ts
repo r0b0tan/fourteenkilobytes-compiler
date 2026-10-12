@@ -6,6 +6,7 @@
  * Returns explicit errors on failure.
  */
 
+import { isSiteLanguage, SITE_LANGUAGES } from './i18n.js';
 import type {
   CompilerInput,
   CompilerError,
@@ -86,6 +87,19 @@ export function validateInput(input: CompilerInput): ValidationResult {
   // Validate icons
   const iconsResult = validateIcons(input.icons);
   if (!iconsResult.valid) return iconsResult;
+
+  // Validate site language if present
+  if (input.language !== undefined && !isSiteLanguage(input.language)) {
+    return {
+      valid: false,
+      error: {
+        code: 'CONTENT_INVALID_ELEMENT',
+        element: `language "${String(input.language)}"`,
+        allowed: [...SITE_LANGUAGES],
+        path: 'language',
+      },
+    };
+  }
 
   return { valid: true };
 }

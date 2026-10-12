@@ -12,6 +12,8 @@
 export const SIZE_LIMIT = 14336; // 14 KB in bytes
 export const MAX_PAGINATION_ITERATIONS = 10;
 
+import type { SiteLanguage } from './i18n.js';
+
 export type ClassManglingMode = 'safe' | 'aggressive';
 
 // =============================================================================
@@ -51,6 +53,8 @@ export interface CompilerInput {
   classManglingMode?: ClassManglingMode;
   /** Posts for bloglist rendering */
   posts?: Post[];
+  /** Language of the site: sets <html lang> and the texts the compiler generates. Defaults to 'en'. */
+  language?: SiteLanguage;
 }
 
 export interface ParagraphBlock {

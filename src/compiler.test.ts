@@ -824,3 +824,58 @@ describe('bloglist', () => {
     }
   });
 });
+
+describe('site language', () => {
+  const posts = [
+    { slug: 'hello', title: 'Hello', publishedAt: '2026-03-05T12:00:00+00:00', modifiedAt: '2026-03-07T12:00:00+00:00', status: 'published', pageType: 'post', author: 'Ada' },
+  ];
+
+  function compileHtml(overrides: Partial<CompilerInput>): string {
+    const result = compile(createMinimalInput(overrides));
+    assert.equal(result.success, true);
+    return result.success ? result.pages[0].html : '';
+  }
+
+  it('defaults to English', () => {
+    const html = compileHtml({ content: [{ type: 'bloglist' }], posts: [] });
+    assert.ok(html.includes('<html lang="en">'));
+    assert.ok(html.includes('No posts yet.'));
+  });
+
+  it('renders German page language, dates and texts', () => {
+    const html = compileHtml({
+      slug: 'hello',
+      language: 'de',
+      content: [{ type: 'author' }, { type: 'bloglist' }],
+      posts,
+    });
+    assert.ok(html.includes('<html lang="de">'));
+    assert.ok(html.includes('5. März 2026'));
+    assert.ok(html.includes('Veröffentlicht: '));
+    assert.ok(html.includes('Aktualisiert: '));
+    assert.ok(html.includes('Von Ada'));
+    assert.ok(!html.includes('Published'));
+  });
+
+  it('renders English dates and author texts', () => {
+    const html = compileHtml({
+      slug: 'hello',
+      language: 'en',
+      content: [{ type: 'author' }, { type: 'bloglist' }],
+      posts,
+    });
+    assert.ok(html.includes('March 5, 2026'));
+    assert.ok(html.includes('Published: '));
+    assert.ok(html.includes('By Ada'));
+  });
+
+  it('uses the language for the end-of-list marker of full lists', () => {
+    const html = compileHtml({ language: 'de', content: [{ type: 'bloglist', limit: null }], posts });
+    assert.ok(html.includes('— Ende der Liste —'));
+  });
+
+  it('rejects unsupported languages', () => {
+    const result = validateInput(createMinimalInput({ language: 'fr' as never }));
+    assert.equal(result.valid, false);
+  });
+});

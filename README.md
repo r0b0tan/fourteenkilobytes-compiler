@@ -199,6 +199,10 @@ If `allowPagination` is `true` and content exceeds the limit, the compiler split
 
 If `allowPagination` is `false` and content exceeds the limit, compilation fails.
 
+## Site Language
+
+The optional `language` field (`'en'` or `'de'`, default `'en'`) sets `<html lang>` and the texts the compiler generates itself: dates and the empty-state text in bloglists, the end-of-list marker on full lists, and the labels in author blocks. Other values fail validation.
+
 ## Manifest
 
 The compiler maintains an append-only manifest:

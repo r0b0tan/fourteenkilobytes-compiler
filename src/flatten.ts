@@ -20,6 +20,7 @@ import type {
 } from './types.js';
 import { measureBytes, normalizeLineEndings, sanitizeHtml } from './measure.js';
 import { getIconSvg, getIconBytes } from './icons.js';
+import { getSiteTexts, resolveSiteLanguage, type SiteLanguage, type SiteTexts } from './i18n.js';
 
 /**
  * HTML escape map for content.
@@ -296,6 +297,8 @@ export function flatten(input: CompilerInput): FlattenResult {
 
   // Build content blocks individually for pagination support
   // Bloglist blocks are expanded into individual items for pagination
+  const language = resolveSiteLanguage(input.language);
+  const texts = getSiteTexts(language);
   const contentBlocks: FlattenedContentBlock[] = [];
   input.content.forEach((block, index) => {
     if (block.type === 'bloglist') {
@@ -305,11 +308,12 @@ export function flatten(input: CompilerInput): FlattenResult {
         block as BloglistBlock,
         index,
         classManglingEnabled,
-        classManglingMode
+        classManglingMode,
+        texts
       );
       contentBlocks.push(...bloglistBlocks);
     } else {
-      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled, classManglingMode, input.slug, input.meta?.author || null);
+      const html = flattenContentBlock(block, input.icons, input.posts, classManglingEnabled, classManglingMode, input.slug, input.meta?.author || null, texts);
       contentBlocks.push({
         html,
         bytes: measureBytes(html),
@@ -324,7 +328,7 @@ export function flatten(input: CompilerInput): FlattenResult {
 
   // Static structure
   const doctype = '<!DOCTYPE html>';
-  const htmlOpen = '<html lang="en">';
+  const htmlOpen = `<html lang="${language}">`;
   const bodyOpen = '<body>';
   const mainOpen = '<main>';
   const mainClose = '</main>';
@@ -396,16 +400,17 @@ function flattenContentBlock(
   classManglingEnabled: boolean = false,
   classManglingMode: ClassManglingMode = 'safe',
   slug?: string,
-  fallbackAuthor?: string | null
+  fallbackAuthor?: string | null,
+  texts: SiteTexts = getSiteTexts(resolveSiteLanguage(undefined))
 ): string {
   if (block.type === 'bloglist') {
-    const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock, classManglingEnabled, classManglingMode);
+    const bloglistHtml = renderBloglist(posts || [], block as BloglistBlock, classManglingEnabled, classManglingMode, texts);
     if (!block.selector) return bloglistHtml;
     return `<div${selectorAttrs(block.selector)}>${bloglistHtml}</div>`;
   }
 
   if (block.type === 'author') {
-    return renderAuthorBlock(posts || [], slug || '', block as AuthorBlock, fallbackAuthor || null);
+    return renderAuthorBlock(posts || [], slug || '', block as AuthorBlock, fallbackAuthor || null, texts);
   }
 
   if (block.type === 'divider') {
@@ -440,7 +445,7 @@ function flattenContentBlock(
     const cellsHtml = block.cells
       .map((cell, index) => {
         const cellContent = cell.children
-          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode, slug, fallbackAuthor))
+          .map((child) => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode, slug, fallbackAuthor, texts))
           .join('\n');
         const cellStyles: string[] = [];
         const textAlign = normalizeAlignment(cell.textAlign);
@@ -504,7 +509,7 @@ function flattenContentBlock(
 
   if (block.type === 'section') {
     const childrenHtml = block.children
-      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode, slug, fallbackAuthor))
+      .map(child => flattenContentBlock(child, icons, posts, classManglingEnabled, classManglingMode, slug, fallbackAuthor, texts))
       .join('\n');
 
     const sectionAlign = normalizeAlignment(block.align);
@@ -559,10 +564,10 @@ function flattenContentBlock(
 /** Default limit for bloglist if not specified */
 const DEFAULT_BLOGLIST_LIMIT = 20;
 
-function formatDisplayDate(iso: string): string {
+function formatDisplayDate(iso: string, texts: SiteTexts): string {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString('de-DE', {
+  return parsed.toLocaleDateString(texts.dateLocale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -576,7 +581,7 @@ function parseDateMs(iso?: string | null): number | null {
   return parsed.getTime();
 }
 
-function renderAuthorBlock(posts: Post[], slug: string, block: AuthorBlock, fallbackAuthor?: string | null): string {
+function renderAuthorBlock(posts: Post[], slug: string, block: AuthorBlock, fallbackAuthor: string | null, texts: SiteTexts): string {
   const current = posts.find(post => post.slug === slug) || null;
   const showPublished = block.showPublished !== false;
   const showModified = block.showModified !== false;
@@ -590,15 +595,15 @@ function renderAuthorBlock(posts: Post[], slug: string, block: AuthorBlock, fall
   const parts: string[] = [];
 
   if (showPublished && publishedAt) {
-    parts.push(`Veröffentlicht: <time datetime="${escapeHtml(publishedAt)}">${escapeHtml(formatDisplayDate(publishedAt))}</time>`);
+    parts.push(`${texts.published}: <time datetime="${escapeHtml(publishedAt)}">${escapeHtml(formatDisplayDate(publishedAt, texts))}</time>`);
   }
 
   if (showModified && modifiedAt && (publishedMs === null || (modifiedMs !== null && modifiedMs > publishedMs))) {
-    parts.push(`Aktualisiert: <time datetime="${escapeHtml(modifiedAt)}">${escapeHtml(formatDisplayDate(modifiedAt))}</time>`);
+    parts.push(`${texts.modified}: <time datetime="${escapeHtml(modifiedAt)}">${escapeHtml(formatDisplayDate(modifiedAt, texts))}</time>`);
   }
 
   if (showAuthor && author) {
-    parts.push(`Von ${escapeHtml(author)}`);
+    parts.push(`${texts.by} ${escapeHtml(author)}`);
   }
 
   const tags = Array.isArray(block.tags)
@@ -611,7 +616,7 @@ function renderAuthorBlock(posts: Post[], slug: string, block: AuthorBlock, fall
     : [];
 
   if (tags.length > 0) {
-    parts.push(`Tags: ${tags.map(tag => escapeHtml(tag)).join(', ')}`);
+    parts.push(`${texts.tags}: ${tags.map(tag => escapeHtml(tag)).join(', ')}`);
   }
 
   return `<p${selectorAttrs(block.selector)}>${parts.join(' · ')}</p>`;
@@ -625,12 +630,13 @@ function renderBloglist(
   posts: Post[],
   block?: BloglistBlock,
   classManglingEnabled: boolean = false,
-  classManglingMode: ClassManglingMode = 'safe'
+  classManglingMode: ClassManglingMode = 'safe',
+  texts: SiteTexts = getSiteTexts(resolveSiteLanguage(undefined))
 ): string {
   const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
 
   if (published.length === 0) {
-    return `<p class="${mangleGeneratedClass('empty', classManglingEnabled, classManglingMode)}">Noch keine Posts.</p>`;
+    return `<p class="${mangleGeneratedClass('empty', classManglingEnabled, classManglingMode)}">${escapeHtml(texts.noPosts)}</p>`;
   }
 
   published.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
@@ -641,11 +647,7 @@ function renderBloglist(
   const limitedPosts = published.slice(0, limit);
 
   const items = limitedPosts.map(post => {
-    const date = new Date(post.publishedAt).toLocaleDateString('de-DE', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const date = escapeHtml(formatDisplayDate(post.publishedAt, texts));
     return `<li class="${mangleGeneratedClass('post', classManglingEnabled, classManglingMode)}"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
   }).join('\n');
 
@@ -669,13 +671,14 @@ function flattenBloglistToItems(
   block: BloglistBlock,
   sourceIndex: number,
   classManglingEnabled: boolean = false,
-  classManglingMode: ClassManglingMode = 'safe'
+  classManglingMode: ClassManglingMode = 'safe',
+  texts: SiteTexts = getSiteTexts(resolveSiteLanguage(undefined))
 ): FlattenedContentBlock[] {
   const published = posts.filter(p => p.status === 'published' && p.pageType === 'post');
 
   if (published.length === 0) {
     // Return empty message as a single block
-    const html = `<p class="${mangleGeneratedClass('empty', classManglingEnabled, classManglingMode)}">Noch keine Posts.</p>`;
+    const html = `<p class="${mangleGeneratedClass('empty', classManglingEnabled, classManglingMode)}">${escapeHtml(texts.noPosts)}</p>`;
     return [{
       html,
       bytes: measureBytes(html),
@@ -691,11 +694,7 @@ function flattenBloglistToItems(
 
   // Create individual blocks for each post item
   const blocks: FlattenedContentBlock[] = limitedPosts.map(post => {
-    const date = new Date(post.publishedAt).toLocaleDateString('de-DE', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const date = escapeHtml(formatDisplayDate(post.publishedAt, texts));
     const html = `<li class="${mangleGeneratedClass('post', classManglingEnabled, classManglingMode)}"><a href="/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a> - <time datetime="${escapeHtml(post.publishedAt)}">${date}</time></li>`;
     return {
       html,
@@ -716,7 +715,7 @@ function flattenBloglistToItems(
     });
   } else if (block?.limit === null) {
     // For full lists (archive page) with no archive link, add "End of list" marker
-    const endHtml = `<p class="${mangleGeneratedClass('end-of-list', classManglingEnabled, classManglingMode)}">— Ende der Liste —</p>`;
+    const endHtml = `<p class="${mangleGeneratedClass('end-of-list', classManglingEnabled, classManglingMode)}">${escapeHtml(texts.endOfList)}</p>`;
     blocks.push({
       html: endHtml,
       bytes: measureBytes(endHtml),

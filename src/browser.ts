@@ -42,6 +42,10 @@ export { SIZE_LIMIT, MAX_PAGINATION_ITERATIONS } from './types.js';
 // Validation (browser-safe)
 export { validateInput } from './validate.js';
 
+// Site language
+export { SITE_LANGUAGES, DEFAULT_SITE_LANGUAGE, isSiteLanguage, resolveSiteLanguage, getSiteTexts } from './i18n.js';
+export type { SiteLanguage, SiteTexts } from './i18n.js';
+
 // Measurement (browser-safe)
 export { measureBytes, computeHash, normalizeLineEndings } from './measure.js';
 
